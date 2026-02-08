@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Server - Minecraft Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <style>
+        /* Inline critical: grass block icon pixels */
+        .gi-grass { background: #5B9A3C; }
+        .gi-dirt  { background: #866043; }
+        .gi-dark  { background: #593D29; }
+        .gi-light { background: #7BC74D; }
+    </style>
+</head>
+<body>
+
+<!-- Toast notifications -->
+<div class="toast-container"></div>
+
+<!-- ========== HEADER ========== -->
+<header class="header">
+    <div class="header-left">
+        <!-- Pixel art grass block icon -->
+        <div class="server-icon">
+            <div class="px gi-light"></div><div class="px gi-grass"></div><div class="px gi-light"></div><div class="px gi-grass"></div>
+            <div class="px gi-grass"></div><div class="px gi-light"></div><div class="px gi-grass"></div><div class="px gi-light"></div>
+            <div class="px gi-dirt"></div><div class="px gi-dark"></div><div class="px gi-dirt"></div><div class="px gi-dark"></div>
+            <div class="px gi-dark"></div><div class="px gi-dirt"></div><div class="px gi-dark"></div><div class="px gi-dirt"></div>
+        </div>
+        <div>
+            <div class="header-title">Family Server</div>
+            <div class="header-subtitle">Minecraft Bedrock Edition &mdash; Dashboard</div>
+        </div>
+    </div>
+    <div class="header-right">
+        <div class="beacon">
+            <div class="beacon-dot" id="beacon-dot"></div>
+            <span class="beacon-label" id="beacon-label">CHECKING...</span>
+        </div>
+    </div>
+</header>
+
+<!-- ========== DASHBOARD GRID ========== -->
+<main class="dashboard">
+
+    <!-- ===== ROW 1: Stat Cards ===== -->
+    <div class="stat-card players">
+        <div class="stat-label">Players Online</div>
+        <div class="stat-value" id="stat-players">-- / --</div>
+        <div class="stat-sub">Peak today: <span id="stat-peak">0</span></div>
+    </div>
+
+    <div class="stat-card uptime">
+        <div class="stat-label">Uptime</div>
+        <div class="stat-value" id="stat-uptime">--:--:--</div>
+        <div class="stat-sub">Latency: <span id="stat-latency">--</span></div>
+    </div>
+
+    <div class="stat-card cpu">
+        <div class="stat-label">CPU Usage</div>
+        <div class="stat-value" id="stat-cpu">--%</div>
+        <div class="resource-bar">
+            <div class="resource-bar-fill cpu" style="width: 0%"></div>
+            <span class="bar-label">0%</span>
+        </div>
+    </div>
+
+    <div class="stat-card memory">
+        <div class="stat-label">Memory</div>
+        <div class="stat-value" id="stat-memory">-- MB</div>
+        <div class="resource-bar">
+            <div class="resource-bar-fill mem" style="width: 0%"></div>
+            <span class="bar-label">0 MB</span>
+        </div>
+    </div>
+
+    <!-- ===== COLUMN 1-2: Players Panel ===== -->
+    <div class="panel players-panel">
+        <div class="panel-header">
+            <span class="icon">&#x2694;</span> Players
+        </div>
+        <div class="panel-body">
+            <ul class="player-list" id="player-list">
+                <div class="no-players">
+                    <span class="big">&#9776;</span>
+                    Loading...
+                </div>
+            </ul>
+        </div>
+
+        <div class="panel-header" style="border-top: 2px solid var(--panel-border);">
+            <span class="icon">&#x1F4DC;</span> Activity Feed
+        </div>
+        <div class="panel-body" id="activity-feed" style="max-height:220px;">
+            <div style="color:var(--text-dim); padding: 20px; text-align:center;">Loading...</div>
+        </div>
+    </div>
+
+    <!-- ===== COLUMN 3-4: Player History Chart ===== -->
+    <div class="panel chart-panel">
+        <div class="panel-header">
+            <span class="icon">&#x1F4C8;</span> Player History (24h)
+            <span style="margin-left:auto; font-family:var(--font-terminal); font-size:16px; color:var(--text-dim);">
+                Unique players: <span id="stat-unique" style="color:var(--diamond);">0</span>
+            </span>
+        </div>
+        <div class="panel-body">
+            <div class="chart-container">
+                <canvas id="player-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== COLUMN 3-4: Server Info ===== -->
+    <div class="panel info-panel">
+        <div class="panel-header">
+            <span class="icon">&#x2699;</span> Server Information
+        </div>
+        <div class="panel-body">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="label">Version</div>
+                    <div class="value" id="info-version">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">Gamemode</div>
+                    <div class="value" id="info-gamemode">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">World Name</div>
+                    <div class="value" id="info-world">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">MOTD</div>
+                    <div class="value" id="info-motd">--</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">Network In</div>
+                    <div class="value" id="info-net-rx">-- MB</div>
+                </div>
+                <div class="info-item">
+                    <div class="label">Network Out</div>
+                    <div class="value" id="info-net-tx">-- MB</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Server controls -->
+        <div class="controls">
+            <button class="mc-btn success" id="btn-start">&#9654; Start</button>
+            <button class="mc-btn danger" id="btn-stop">&#9632; Stop</button>
+            <button class="mc-btn" id="btn-restart">&#8635; Restart</button>
+        </div>
+    </div>
+
+    <!-- ===== COLUMN 1-2: Quick Actions ===== -->
+    <div class="panel quick-actions-panel">
+        <div class="panel-header">
+            <span class="icon">&#x26A1;</span> Quick Actions
+        </div>
+        <div class="panel-body">
+            <div class="quick-actions-grid">
+                <button class="qa-btn" data-cmd="time set day" title="Set time to day">
+                    <span class="qa-icon">&#x2600;</span>
+                    <span class="qa-label">Set Day</span>
+                </button>
+                <button class="qa-btn" data-cmd="time set 18000" title="Set time to night">
+                    <span class="qa-icon">&#x1F319;</span>
+                    <span class="qa-label">Set Night</span>
+                </button>
+                <button class="qa-btn" data-cmd="weather clear" title="Clear weather">
+                    <span class="qa-icon">&#x2601;</span>
+                    <span class="qa-label">Clear Weather</span>
+                </button>
+                <button class="qa-btn" data-cmd="give @a diamond 64" title="Give everyone 64 diamonds">
+                    <span class="qa-icon">&#x1F48E;</span>
+                    <span class="qa-label">Give Diamonds</span>
+                </button>
+                <button class="qa-btn" data-cmd="effect @a instant_health 1 255" title="Heal all players">
+                    <span class="qa-icon">&#x2764;</span>
+                    <span class="qa-label">Heal All</span>
+                </button>
+                <button class="qa-btn" data-cmd="effect @a speed 120 2" title="Speed boost for all">
+                    <span class="qa-icon">&#x1F3C3;</span>
+                    <span class="qa-label">Speed Boost</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== COLUMN 3-4: Settings ===== -->
+    <div class="panel settings-panel">
+        <div class="panel-header">
+            <span class="icon">&#x2699;</span> Server Settings
+        </div>
+        <div class="panel-body">
+            <form class="settings-form" id="settings-form" onsubmit="return false;">
+                <div class="setting-row">
+                    <label class="setting-label" for="set-gamemode">Gamemode</label>
+                    <div class="mc-select-wrap">
+                        <select class="mc-select" id="set-gamemode" name="gamemode">
+                            <option value="survival">Survival</option>
+                            <option value="creative">Creative</option>
+                            <option value="adventure">Adventure</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label" for="set-difficulty">Difficulty</label>
+                    <div class="mc-select-wrap">
+                        <select class="mc-select" id="set-difficulty" name="difficulty">
+                            <option value="peaceful">Peaceful</option>
+                            <option value="easy">Easy</option>
+                            <option value="normal">Normal</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label">Cheats</label>
+                    <label class="mc-toggle">
+                        <input type="checkbox" id="set-cheats" name="allow-cheats">
+                        <span class="mc-toggle-slider"></span>
+                        <span class="mc-toggle-label" id="cheats-label">OFF</span>
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <label class="setting-label" for="set-max-players">Max Players</label>
+                    <input type="number" class="mc-number" id="set-max-players" name="max-players" min="1" max="30" value="10">
+                </div>
+                <button class="mc-btn success settings-apply" id="btn-apply-settings" type="button">
+                    &#x2699; Apply &amp; Restart
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===== FULL WIDTH: Console ===== -->
+    <div class="panel console-panel">
+        <div class="panel-header">
+            <span class="icon">&#x1F4BB;</span> Server Console
+        </div>
+        <div class="panel-body" style="padding: 12px;">
+            <div class="console-output" id="console-output">
+                <div class="log-line info">Waiting for server logs...</div>
+            </div>
+            <div class="console-input-row">
+                <div class="console-prompt">&gt;</div>
+                <input type="text"
+                       class="console-input"
+                       id="console-input"
+                       placeholder="Type a server command..."
+                       autocomplete="off"
+                       spellcheck="false">
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

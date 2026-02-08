@@ -1,0 +1,26 @@
+services:
+  bedrock-server:
+    image: itzg/minecraft-bedrock-server
+    container_name: minecraft-bedrock
+    environment:
+      EULA: "TRUE"
+      SERVER_NAME: "Family Server"
+      GAMEMODE: creative
+      DIFFICULTY: normal
+      MAX_PLAYERS: 10
+      ONLINE_MODE: "true"
+      ALLOW_CHEATS: "true"
+      FORCE_GAMEMODE: "true"
+      VIEW_DISTANCE: 16
+      TICK_DISTANCE: 4
+      LEVEL_NAME: "FamilyWorld"
+      SERVER_PORT: 19133
+      SERVER_PORT_V6: 19134
+      ENABLE_LAN_VISIBILITY: "false"
+    ports:
+      - "19133:19133/udp"
+    volumes:
+      - ./server-data:/data
+    stdin_open: true
+    tty: true
+    restart: unless-stopped

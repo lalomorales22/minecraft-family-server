@@ -1,0 +1,30 @@
+# Minecraft world data
+server-data/
+
+# BedrockConnect downloaded files
+bedrockconnect/
+
+# Player data (gamertags, UUIDs)
+players/
+
+# Python virtual environment
+dashboard/venv/
+
+# Player analytics (auto-generated)
+dashboard/history.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment files
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
