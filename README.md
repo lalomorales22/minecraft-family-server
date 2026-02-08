@@ -1,4 +1,5 @@
 # Minecraft Family Server
+<img width="1037" height="1159" alt="Screenshot 2026-02-08 at 11 37 26 AM" src="https://github.com/user-attachments/assets/c072be3c-4906-49e6-b185-32ff57d7d29d" />
 
 A self-hosted **Minecraft Bedrock Edition** dedicated server with a custom **Minecraft-themed web dashboard** for monitoring and management. Built for cross-play between **PS4, PS5, and Nintendo Switch**.
 
