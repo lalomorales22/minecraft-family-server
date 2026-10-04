@@ -42,6 +42,101 @@
     </div>
 </header>
 
+<!-- ========== HOW TO JOIN ========== -->
+<section class="join-wrap">
+    <div class="panel join-panel" id="join-panel">
+        <button class="panel-header join-toggle" id="join-toggle" type="button" aria-expanded="true">
+            <span class="icon">&#x1F3AE;</span> How to Join
+            <span class="join-ready" id="join-ready">Checking...</span>
+            <span class="join-chevron">&#9660;</span>
+        </button>
+        <div class="join-body" id="join-body">
+
+            <!-- Left: the two numbers + health check -->
+            <div class="join-side">
+                <div class="join-step-title">1. Type these into the console</div>
+                <div class="dns-box">
+                    <div class="dns-row">
+                        <span class="dns-label">Primary DNS</span>
+                        <span class="dns-value host-ip">...</span>
+                    </div>
+                    <div class="dns-row">
+                        <span class="dns-label">Secondary DNS</span>
+                        <span class="dns-value">8.8.8.8</span>
+                    </div>
+                </div>
+                <div class="join-note">One time per console. Leave every other network setting on Automatic.</div>
+
+                <div class="join-step-title" style="margin-top:18px;">Setup Check</div>
+                <ul class="setup-checks" id="setup-checks">
+                    <li class="setup-check"><span class="check-mark">&hellip;</span><span>Checking...</span></li>
+                </ul>
+            </div>
+
+            <!-- Right: where to type them, per console -->
+            <div class="join-main">
+                <div class="join-tabs" role="tablist">
+                    <button class="join-tab active" data-console="ps5" type="button">PS5</button>
+                    <button class="join-tab" data-console="ps4" type="button">PS4</button>
+                    <button class="join-tab" data-console="switch" type="button">Switch</button>
+                    <button class="join-tab" data-console="xbox" type="button">Xbox</button>
+                    <button class="join-tab" data-console="other" type="button">Phone / PC</button>
+                </div>
+
+                <ol class="join-steps" data-console="ps5">
+                    <li><b>Settings</b> &rarr; <b>Network</b> &rarr; <b>Settings</b> &rarr; <b>Set Up Internet Connection</b></li>
+                    <li>Highlight your Wi-Fi, press the <b>Options</b> button, choose <b>Advanced Settings</b></li>
+                    <li>Change <b>DNS Settings</b> to <b>Manual</b></li>
+                    <li>Primary DNS: <span class="inline-ip host-ip">...</span> &nbsp; Secondary DNS: <span class="inline-ip">8.8.8.8</span></li>
+                    <li>Press <b>OK</b></li>
+                </ol>
+
+                <ol class="join-steps" data-console="ps4" hidden>
+                    <li><b>Settings</b> &rarr; <b>Network</b> &rarr; <b>Set Up Internet Connection</b></li>
+                    <li>Choose <b>Use Wi-Fi</b> (or LAN Cable), then <b>Custom</b></li>
+                    <li>IP Address: <b>Automatic</b> &nbsp; DHCP Host Name: <b>Do Not Specify</b></li>
+                    <li>DNS Settings: <b>Manual</b></li>
+                    <li>Primary DNS: <span class="inline-ip host-ip">...</span> &nbsp; Secondary DNS: <span class="inline-ip">8.8.8.8</span></li>
+                    <li>MTU: <b>Automatic</b> &nbsp; Proxy Server: <b>Do Not Use</b></li>
+                </ol>
+
+                <ol class="join-steps" data-console="switch" hidden>
+                    <li><b>System Settings</b> &rarr; <b>Internet</b> &rarr; <b>Internet Settings</b></li>
+                    <li>Select your Wi-Fi, then <b>Change Settings</b></li>
+                    <li>Change <b>DNS Settings</b> to <b>Manual</b></li>
+                    <li>Primary DNS: <span class="inline-ip host-ip">...</span> &nbsp; Secondary DNS: <span class="inline-ip">8.8.8.8</span></li>
+                    <li>Press <b>Save</b></li>
+                </ol>
+
+                <ol class="join-steps" data-console="xbox" hidden>
+                    <li><b>Settings</b> &rarr; <b>General</b> &rarr; <b>Network settings</b> &rarr; <b>Advanced settings</b></li>
+                    <li>Choose <b>DNS settings</b>, then <b>Manual</b></li>
+                    <li>Primary DNS: <span class="inline-ip host-ip">...</span></li>
+                    <li>Secondary DNS: <span class="inline-ip">8.8.8.8</span></li>
+                </ol>
+
+                <ol class="join-steps" data-console="other" hidden>
+                    <li>No DNS change needed on phones, tablets or computers</li>
+                    <li>In Minecraft: <b>Play</b> &rarr; <b>Servers</b> &rarr; <b>Add Server</b></li>
+                    <li>Server Address: <span class="inline-ip host-ip">...</span> &nbsp; Port: <span class="inline-ip">19133</span></li>
+                    <li>Save, then tap it to join</li>
+                </ol>
+
+                <div class="join-then" id="join-then">
+                    <div class="join-step-title">2. Then, in Minecraft</div>
+                    <ol class="join-steps">
+                        <li>Sign in with a free Microsoft account (each player needs their own)</li>
+                        <li><b>Play</b> &rarr; <b>Servers</b> tab &rarr; pick <b>The Hive</b>
+                            <span class="join-note-inline">(Lifeboat, Mineville, Galaxite or Enchanted Dragons work too)</span></li>
+                        <li>A server list appears instead &mdash; choose <b>Family Server</b></li>
+                    </ol>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</section>
+
 <!-- ========== DASHBOARD GRID ========== -->
 <main class="dashboard">
 

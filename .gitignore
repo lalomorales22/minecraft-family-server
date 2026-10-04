@@ -12,6 +12,7 @@ dashboard/venv/
 
 # Player analytics (auto-generated)
 dashboard/history.json
+dashboard/data/
 
 # Python
 __pycache__/

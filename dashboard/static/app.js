@@ -3,6 +3,7 @@
 // ============================================
 
 const REFRESH_INTERVAL = 5000; // 5 seconds
+const SETUP_INTERVAL = 15000;  // setup check is slower (it pings each service)
 let playerChart = null;
 
 // ---------- Utility ----------
@@ -227,7 +228,7 @@ async function serverAction(action) {
     if (result && result.success) {
         toast(`Server ${action} successful!`, 'success');
     } else {
-        toast(`Failed to ${action} server`, 'error');
+        toast(result?.error || `Failed to ${action} server`, 'error');
     }
     setTimeout(refreshAll, 2000);
 }
@@ -333,7 +334,7 @@ async function saveSettings() {
         toast('Settings saved! Server restarting...', 'success');
         setTimeout(refreshAll, 5000);
     } else {
-        toast('Failed to save settings', 'error');
+        toast(result?.error || 'Failed to save settings', 'error');
     }
 }
 
@@ -345,6 +346,57 @@ async function quickAction(cmd) {
     } else {
         toast('Command failed', 'error');
     }
+}
+
+// ---------- How to Join / Setup Check ----------
+
+async function updateSetup() {
+    const data = await api('setup');
+    if (!data) return;
+
+    $$('.host-ip').forEach(el => { el.textContent = data.host_ip || 'unknown'; });
+
+    const ready = $('#join-ready');
+    ready.textContent = data.ready ? 'Ready for players' : 'Needs attention';
+    ready.className = `join-ready ${data.ready ? 'ok' : 'bad'}`;
+
+    $('#setup-checks').innerHTML = data.checks.map(c => `
+        <li class="setup-check ${c.ok ? 'ok' : 'bad'}">
+            <span class="check-mark">${c.ok ? '&#10004;' : '&#10008;'}</span>
+            <span>${escapeHtml(c.label)}</span>
+            ${c.ok ? '' : `<span class="check-detail">${escapeHtml(c.detail)}</span>`}
+        </li>`).join('');
+
+    // Something is broken: make sure the panel explaining it is visible
+    if (!data.ready) setJoinCollapsed(false, false);
+}
+
+function setJoinCollapsed(collapsed, remember = true) {
+    $('#join-panel').classList.toggle('collapsed', collapsed);
+    $('#join-toggle').setAttribute('aria-expanded', String(!collapsed));
+    if (remember) {
+        try { localStorage.setItem('joinCollapsed', collapsed ? '1' : '0'); } catch (e) { /* private mode */ }
+    }
+}
+
+function initJoinPanel() {
+    let collapsed = false;
+    try { collapsed = localStorage.getItem('joinCollapsed') === '1'; } catch (e) { /* private mode */ }
+    setJoinCollapsed(collapsed, false);
+
+    $('#join-toggle').addEventListener('click', () => {
+        setJoinCollapsed(!$('#join-panel').classList.contains('collapsed'));
+    });
+
+    $$('.join-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const which = tab.dataset.console;
+            $$('.join-tab').forEach(t => t.classList.toggle('active', t === tab));
+            $$('.join-steps[data-console]').forEach(list => { list.hidden = list.dataset.console !== which; });
+            // Phones and PCs connect straight to the server, no Featured Server trick
+            $('#join-then').hidden = which === 'other';
+        });
+    });
 }
 
 // ---------- Main Loop ----------
@@ -361,8 +413,11 @@ async function refreshAll() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initChart();
+    initJoinPanel();
     refreshAll();
     setInterval(refreshAll, REFRESH_INTERVAL);
+    updateSetup();
+    setInterval(updateSetup, SETUP_INTERVAL);
 
     // Button handlers
     $('#btn-start')?.addEventListener('click', () => serverAction('start'));

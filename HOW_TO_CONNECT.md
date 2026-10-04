@@ -7,12 +7,11 @@ You do NOT create a new world on your console - just connect to the server and y
 
 ## Step 1: Find the Server IP
 
-On your Mac, run `./start-server.sh`. It will print the server IP at the top.
-You can also find it manually by running: `ipconfig getifaddr en0`
+On your Mac, run `./start.sh`. It prints the server IP and opens the dashboard (http://localhost:8080), whose **How to Join** box shows these same steps with the IP already filled in.
 
 Use this IP wherever you see `<YOUR_MAC_IP>` below.
 
-(This can change if the router assigns a new IP. Check the startup output if things stop working.)
+(This can change if the router assigns a new IP. Run `./start.sh` again if things stop working — it tells you if the IP changed.)
 
 ---
 
@@ -43,12 +42,12 @@ This is a one-time setup. It tells your console to route through BedrockConnect 
 
 ## Step 3: Connect to the Family Server
 
-This is the same on both consoles:
+This is the same on every console:
 
 1. Open **Minecraft**
 2. Press **Play**
 3. Go to the **Servers** tab (far right)
-4. Pick **any** Featured Server (Hive, Mineplex, etc. - doesn't matter which)
+4. Pick **The Hive** (Lifeboat, Mineville, Galaxite and Enchanted Dragons also work - other Featured Servers don't)
 5. It will connect to **BedrockConnect** instead (a menu with a server list)
 6. You'll see **"Family Server"** in the list - select it and join
 
@@ -68,8 +67,8 @@ That's it - there is no step 4. Once each person joins the server, you're all in
 
 | What | Status |
 |------|--------|
-| Mac running `./start-server.sh`? | Must be running |
-| Mac running `./start-dashboard.sh`? | Optional (for the web dashboard) |
+| Ran `./start.sh` on the Mac? | Once - it keeps running in the background |
+| Dashboard Setup Check all green? | http://localhost:8080 |
 | Console DNS set to Mac IP? | One-time setup |
 | Xbox Live / Microsoft account signed in? | Required on each console |
 | Same Wi-Fi network as the Mac? | Required |
@@ -79,19 +78,19 @@ That's it - there is no step 4. Once each person joins the server, you're all in
 ## Troubleshooting
 
 **"Unable to connect to world"**
-- Make sure `./start-server.sh` is running on the Mac
+- Run `./start.sh` on the Mac and check the dashboard's Setup Check is all green
 - Make sure the console is on the same Wi-Fi network
 - Check that the server IP hasn't changed
 
 **BedrockConnect menu doesn't appear (goes to the real Featured Server instead)**
+- Pick The Hive, Lifeboat, Mineville, Galaxite or Enchanted Dragons - other Featured Servers aren't redirected
 - Double-check the DNS settings - Primary DNS must be the Mac IP
 - Restart Minecraft fully (close and reopen the app)
-- Make sure `./start-server.sh` is still running (it runs BedrockConnect)
 
 **Kicked or can't join**
 - Everyone needs to be signed into a Microsoft/Xbox Live account (it's free)
 - The server allows up to 10 players
 
 **Server IP changed**
-- Run `./start-server.sh` again and check the new IP at the top
+- Run `./start.sh` again and check the new IP it prints
 - Update the DNS on each console to the new IP

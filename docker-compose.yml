@@ -1,15 +1,16 @@
+# Everything runs in Docker. Don't run `docker compose up` by hand —
+# use ./start.sh, which detects this computer's IP and writes it to .env first.
+name: minecraft-family-server
+
 services:
+  # The actual Minecraft world
   bedrock-server:
     image: itzg/minecraft-bedrock-server
     container_name: minecraft-bedrock
     environment:
       EULA: "TRUE"
       SERVER_NAME: "Family Server"
-      GAMEMODE: creative
-      DIFFICULTY: normal
-      MAX_PLAYERS: 10
       ONLINE_MODE: "true"
-      ALLOW_CHEATS: "true"
       FORCE_GAMEMODE: "true"
       VIEW_DISTANCE: 16
       TICK_DISTANCE: 4
@@ -17,10 +18,71 @@ services:
       SERVER_PORT: 19133
       SERVER_PORT_V6: 19134
       ENABLE_LAN_VISIBILITY: "false"
+      # Newer Bedrock servers default to transport=nethernet and allow-list=true.
+      # Consoles arriving through BedrockConnect need raknet, and an empty
+      # allow list would lock everyone out.
+      TRANSPORT: raknet
+      ALLOW_LIST: "false"
+      # Gamemode, difficulty, cheats and max players are NOT set here on
+      # purpose: change them from the dashboard's Server Settings panel.
+      # (Anything set here overwrites server.properties on every restart.)
     ports:
       - "19133:19133/udp"
     volumes:
       - ./server-data:/data
     stdin_open: true
     tty: true
+    restart: unless-stopped
+    # The image's built-in health check can't read a raknet server on current
+    # Bedrock versions and would always say "unhealthy". The dashboard's
+    # Setup Check does this job instead.
+    healthcheck:
+      disable: true
+
+  # Shows consoles a server list with "Family Server" in it
+  bedrockconnect:
+    image: pugmatt/bedrock-connect
+    container_name: minecraft-bedrockconnect
+    environment:
+      BC_CUSTOM_SERVERS: /config/custom_servers.json
+      BC_PACKET_LIMIT: 1024
+      BC_GLOBAL_PACKET_LIMIT: 200000
+    ports:
+      - "19132:19132/udp"
+    volumes:
+      - ./bedrockconnect:/config:ro
+      - ./players:/docker/brc/players
+    restart: unless-stopped
+
+  # Sends consoles to BedrockConnect when they pick a Featured Server.
+  # Every other lookup is passed straight through to the real internet.
+  dns:
+    build: ./dns
+    container_name: minecraft-dns
+    command:
+      - --address=/hivebedrock.network/${HOST_IP:?Run ./start.sh instead of docker compose}
+      - --address=/play.inpvp.net/${HOST_IP}
+      - --address=/mco.lbsg.net/${HOST_IP}
+      - --address=/play.galaxite.net/${HOST_IP}
+      - --address=/play.enchanted.gg/${HOST_IP}
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    restart: unless-stopped
+
+  # Web dashboard: http://localhost:8080
+  dashboard:
+    build: ./dashboard
+    container_name: minecraft-dashboard
+    environment:
+      HOST_IP: ${HOST_IP}
+      SERVER_HOST: bedrock-server
+      PROPERTIES_FILE: /server-data/server.properties
+      DATA_DIR: /data
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./server-data:/server-data
+      - ./dashboard/data:/data
     restart: unless-stopped

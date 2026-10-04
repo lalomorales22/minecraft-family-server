@@ -1,7 +1,7 @@
 # Minecraft Family Server
 <img width="1037" height="1159" alt="Screenshot 2026-02-08 at 11 37 26 AM" src="https://github.com/user-attachments/assets/c072be3c-4906-49e6-b185-32ff57d7d29d" />
 
-A self-hosted **Minecraft Bedrock Edition** dedicated server with a custom **Minecraft-themed web dashboard** for monitoring and management. Built for cross-play between **PS4, PS5, and Nintendo Switch**.
+A self-hosted **Minecraft Bedrock Edition** dedicated server with a custom **Minecraft-themed web dashboard** for monitoring and management. Built for cross-play between **PS4, PS5, Xbox and Nintendo Switch**. The only thing you install is Docker Desktop.
 
 ![Bedrock](https://img.shields.io/badge/Minecraft-Bedrock%20Edition-brightgreen)
 ![Docker](https://img.shields.io/badge/Docker-Powered-blue)
@@ -10,25 +10,61 @@ A self-hosted **Minecraft Bedrock Edition** dedicated server with a custom **Min
 
 ---
 
+<p align="center">
+  <img src="docs/how-it-works.svg" alt="How the Minecraft Family Server works: consoles look up a Featured Server, a DNS redirect on your computer sends them to a server list, and picking Family Server drops them into your world. Setup is three steps: install Docker Desktop, run ./start.sh, and set each console's DNS to your computer's IP." width="100%">
+</p>
+
+---
+
+## Quick Start
+
+**1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/)** (free) and open it once.
+
+**2. Download this project and start it:**
+
+```bash
+git clone https://github.com/lalomorales22/minecraft-family-server.git
+cd minecraft-family-server
+./start.sh
+```
+
+**3. Follow the "How to Join" box** in the dashboard that opens (http://localhost:8080). It shows the two numbers to type into each console and where to type them.
+
+That's it. `./start.sh` finds your computer's address, starts everything, checks that each piece is really working, and tells you if something isn't. It's safe to run again any time — it's also the fix for most problems.
+
+| Command | What it does |
+|---|---|
+| `./start.sh` | Start (or repair) everything and open the dashboard |
+| `./stop.sh` | Stop everything. Your world stays saved in `server-data/` |
+
+> **Requirements:** a Mac with Docker Desktop, on the same Wi-Fi / network as the consoles, and a free Microsoft account for each player. No Java, Python, Homebrew or `sudo` needed.
+
+---
+
 ## What's Inside
+
+`./start.sh` runs four small containers:
 
 | Component | Description |
 |---|---|
-| **Bedrock Dedicated Server** | Official Minecraft server running in Docker, always-on |
-| **BedrockConnect** | DNS bridge that lets consoles (PS4/PS5/Switch) connect to the custom server |
-| **Web Dashboard** | Minecraft-themed analytics panel with real-time monitoring |
+| **Bedrock Dedicated Server** | The official Minecraft server — your world lives here |
+| **BedrockConnect** | Shows consoles a server list with "Family Server" in it |
+| **DNS** | Sends consoles to BedrockConnect when they pick a Featured Server |
+| **Web Dashboard** | Minecraft-themed control panel with setup guide and live monitoring |
 
 ### How It All Works Together
 
-Consoles (PS4, PS5, Switch) can't type in custom server addresses — they can only connect to "Featured Servers" like The Hive. **BedrockConnect** gets around this by acting as a DNS server on your Mac. When a console tries to connect to a Featured Server, BedrockConnect intercepts the connection and shows you a server list instead, where your **Family Server** is waiting. Pick it, and you're redirected to the actual Bedrock server running in Docker.
+Consoles (PlayStation, Xbox, Switch) can't type in custom server addresses — they can only connect to "Featured Servers" like The Hive. So you point the console's DNS at your computer. When the console looks up a Featured Server, it gets sent to **BedrockConnect** instead, which shows a server list with your **Family Server** in it. Pick it, and you're moved to the real Bedrock server.
 
 ```
-Console → DNS lookup → BedrockConnect (port 19132) → Server list UI
-                                                        ↓
-                                              "Family Server" selected
-                                                        ↓
-                                          Bedrock Dedicated Server (port 19133)
+Console → DNS lookup (port 53) → BedrockConnect (port 19132) → Server list
+                                                                   ↓
+                                                        "Family Server" selected
+                                                                   ↓
+                                                  Bedrock Dedicated Server (port 19133)
 ```
+
+Every other DNS lookup is passed straight through to the internet, so the console's other games and apps are unaffected.
 
 ## Features
 
@@ -36,13 +72,15 @@ Console → DNS lookup → BedrockConnect (port 19132) → Server list UI
 - 24/7 Minecraft Bedrock server running in Docker
 - Persistent world data saved to `server-data/`
 - Supports 10+ concurrent players with cross-play
-- Auto-restarts on crash via Docker
+- Auto-restarts on crash and after reboots
 
 ### Web Dashboard
+- **How to Join** — per-console steps with your real IP filled in, plus a live Setup Check of every piece
 - **Real-time server status** — online/offline beacon, latency, version
 - **Player tracking** — see who's connected, join/leave activity feed
 - **Resource monitoring** — CPU, memory, network usage with visual bars
 - **Player history chart** — 24-hour player count graph
+- **Server settings** — gamemode, difficulty, cheats and max players, saved across restarts
 - **Server console** — view logs and send commands from the browser
 - **Server controls** — start, stop, restart with one click
 - **Fully responsive** — works on desktop, tablet, and phone
@@ -50,58 +88,15 @@ Console → DNS lookup → BedrockConnect (port 19132) → Server list UI
 
 ---
 
-## Requirements
-
-- **macOS** (tested on macOS Sequoia / Darwin 25.x)
-- **Docker Desktop** (for the Bedrock server)
-- **Python 3.10+** (for the dashboard)
-- **Java 17+** (for BedrockConnect)
-- All consoles on the **same Wi-Fi / LAN** as the server
-- A **free Microsoft / Xbox account** for each player
-
----
-
-## Quick Start
-
-### 1. Start the Minecraft Server + BedrockConnect
-
-```bash
-cd ~/Software/Minecraft
-./start-server.sh
-```
-
-  - minecraft-server — starts Docker + DNS + BedrockConnect
-  - minecraft-stop — stops everything                                           
-  - minecraft-dashboard — starts the web dashboard on port 8080 
-
-This starts:
-- The Bedrock Dedicated Server on **port 19133** (Docker)
-- BedrockConnect proxy + DNS on **port 19132 / port 53** (Java)
-
-### 2. Start the Web Dashboard
-
-In a second terminal:
-
-```bash
-cd ~/Software/Minecraft
-./start-dashboard.sh
-```
-
-First run will create a Python virtual environment and install dependencies. The dashboard will be available at:
-
-- **http://localhost:8080** (from your Mac)
-- **http://`<YOUR_MAC_IP>`:8080** (from any device on your network)
-
----
-
 ## Device Setup
 
 Every console needs two things:
 1. **A Microsoft / Xbox account** signed into Minecraft (free — create one at [xbox.com/create-account](https://xbox.com/create-account))
-2. **DNS settings changed** to point to your Mac's IP address
+2. **DNS settings changed** to point to your computer's IP address
 
-> **Find your Mac's IP address:** run `ipconfig getifaddr en0` in Terminal.
-> Use this IP wherever you see `<YOUR_MAC_IP>` below.
+> **Easier:** open the dashboard at http://localhost:8080 — its **How to Join** box shows these same steps with your real IP address already filled in.
+>
+> `./start.sh` also prints the IP. Use it wherever you see `<YOUR_MAC_IP>` below.
 
 ---
 
@@ -137,7 +132,7 @@ Every console needs two things:
 
 1. From the Minecraft main menu, press **Play**
 2. Go to the **Servers** tab (at the top)
-3. Scroll down and select **any Featured Server** (The Hive, CubeCraft, Mineplex — doesn't matter which)
+3. Scroll down and select **The Hive** (Lifeboat, Mineville, Galaxite and Enchanted Dragons also work — other Featured Servers don't)
 4. Instead of the Featured Server, the **BedrockConnect server list** will appear
 5. You'll see **"Family Server"** in the list — select it
 6. You're in! You should load into the family world
@@ -175,7 +170,7 @@ Every console needs two things:
 
 1. Press **Play** from the main menu
 2. Navigate to the **Servers** tab
-3. Select **any Featured Server** (The Hive, Mineplex, etc.)
+3. Select **The Hive** (Lifeboat, Mineville, Galaxite and Enchanted Dragons also work — other Featured Servers don't)
 4. The **BedrockConnect server list** appears instead
 5. Select **"Family Server"** from the list
 6. Done — you'll spawn into the family world
@@ -212,10 +207,27 @@ Every console needs two things:
 
 1. Press **Play** from the main menu
 2. Go to the **Servers** tab at the top
-3. Select **any Featured Server** from the list (The Hive, CubeCraft, etc.)
+3. Select **The Hive** (Lifeboat, Mineville, Galaxite and Enchanted Dragons also work — other Featured Servers don't)
 4. The **BedrockConnect menu** will appear instead of the Featured Server
 5. Select **"Family Server"**
 6. You'll connect and spawn into the family world
+
+---
+
+### Xbox
+
+1. **Settings** → **General** → **Network settings** → **Advanced settings**
+2. Select **DNS settings** → **Manual**
+3. **Primary DNS: `<YOUR_MAC_IP>`**, **Secondary DNS: `8.8.8.8`**
+4. Open Minecraft → **Play** → **Servers** → select **The Hive** → choose **"Family Server"**
+
+---
+
+### Phone, Tablet or PC
+
+No DNS change needed. In Minecraft: **Play** → **Servers** → **Add Server**, then enter:
+- **Server Address:** `<YOUR_MAC_IP>`
+- **Port:** `19133`
 
 ---
 
@@ -246,37 +258,34 @@ If any player is a **child account** (under 13), you may need to adjust privacy 
 
 ### Keeping the Server Running
 
-The Minecraft server runs in Docker with `restart: unless-stopped`, so it will:
-- Survive Mac restarts (as long as Docker Desktop is set to start on login)
+Everything runs in Docker with `restart: unless-stopped`, so it will:
+- Survive restarts, as long as Docker Desktop is set to open at login (Docker Desktop → Settings → General → **Start Docker Desktop when you sign in**)
 - Auto-recover from crashes
 - Keep all world data safe in `server-data/`
 
-You only need to re-run `./start-server.sh` if you manually stopped it with `./stop-server.sh`.
+No terminal window needs to stay open. You only need `./start.sh` again if you stopped it with `./stop.sh`, or if something stops working.
 
 ---
 
 ## Project Structure
 
 ```
-Minecraft/
-├── docker-compose.yml          # Bedrock server Docker config (port 19133)
-├── start-server.sh             # Starts Bedrock server + BedrockConnect
-├── stop-server.sh              # Stops the Bedrock server
-├── start-dashboard.sh          # Starts the web dashboard
-├── server-data/                # Minecraft world data (auto-created)
-├── bedrockconnect/             # BedrockConnect JAR + config (auto-created)
-│   ├── BedrockConnect-1.0-SNAPSHOT.jar
-│   └── custom_servers.json
+minecraft-family-server/
+├── start.sh                    # Start / repair everything
+├── stop.sh                     # Stop everything
+├── docker-compose.yml          # The four containers
+├── dns/Dockerfile              # Tiny dnsmasq image for the console DNS redirect
 ├── dashboard/
+│   ├── Dockerfile
 │   ├── app.py                  # Flask backend (API + server)
-│   ├── requirements.txt        # Python dependencies
-│   ├── history.json            # Player analytics data (auto-created)
-│   ├── templates/
-│   │   └── index.html          # Dashboard HTML
-│   └── static/
-│       ├── style.css           # Minecraft-themed styles
-│       └── app.js              # Real-time dashboard logic
-└── README.md                   # You're reading it
+│   ├── requirements.txt
+│   ├── templates/index.html    # Dashboard HTML
+│   └── static/                 # Styles + dashboard logic
+├── server-data/                # Minecraft world data (auto-created)
+├── bedrockconnect/             # Server list shown to consoles (auto-created)
+├── players/                    # BedrockConnect player data (auto-created)
+├── .env                        # This computer's IP (auto-created by start.sh)
+└── README.md
 ```
 
 ---
@@ -288,75 +297,75 @@ The dashboard exposes a REST API on port 8080:
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/status` | GET | Server status (online, players, version, latency) |
+| `/api/setup` | GET | This computer's IP + health of server, BedrockConnect and DNS |
 | `/api/players` | GET | Connected players + recent join/leave events |
 | `/api/stats` | GET | Docker container stats (CPU, RAM, network) |
 | `/api/history` | GET | Player count history (24h) |
 | `/api/logs?lines=50` | GET | Recent server console output |
+| `/api/settings` | GET / POST | Read or change gamemode, difficulty, cheats, max players |
 | `/api/server/start` | POST | Start the Bedrock server |
 | `/api/server/stop` | POST | Stop the Bedrock server |
 | `/api/server/restart` | POST | Restart the Bedrock server |
 | `/api/command` | POST | Send a command to the server console |
 
+> The dashboard has no password and can run server commands, so anyone on your home network can use it. Don't forward port 8080 on your router.
+
 ---
 
 ## Configuration
 
-### Server Settings
+### Game Settings
 
-Edit `docker-compose.yml` to customize:
+Change **gamemode, difficulty, cheats and max players** in the dashboard's **Server Settings** panel. A brand-new world starts as Survival / Easy.
+
+Everything else is in `docker-compose.yml`:
 
 ```yaml
 environment:
   SERVER_NAME: "Family Server"     # Server name
-  GAMEMODE: survival               # survival, creative, adventure
-  DIFFICULTY: normal               # peaceful, easy, normal, hard
-  MAX_PLAYERS: 10                  # Max concurrent players
-  ALLOW_CHEATS: "false"            # Enable /give, /tp, etc.
   VIEW_DISTANCE: 16                # Render distance (chunks)
   LEVEL_NAME: "FamilyWorld"        # World folder name
 ```
 
-After changing settings, restart the server:
-
-```bash
-./stop-server.sh && ./start-server.sh
-```
+After editing it, run `./start.sh` again. ([Full list of options](https://github.com/itzg/docker-minecraft-bedrock-server#server-properties))
 
 ### Port Reference
 
 | Port | Protocol | Used By | Purpose |
 |---|---|---|---|
-| 19132 | UDP | BedrockConnect | Console proxy + server list UI |
+| 53 | UDP/TCP | DNS | Redirects console lookups of Featured Servers |
+| 19132 | UDP | BedrockConnect | Server list shown to consoles |
 | 19133 | UDP | Bedrock Server | The actual Minecraft server |
-| 53 | UDP/TCP | BedrockConnect | DNS server (intercepts console lookups) |
 | 8080 | TCP | Dashboard | Web dashboard UI and API |
-
-### Dashboard Settings
-
-Edit `dashboard/app.py` constants:
-
-```python
-SERVER_HOST = "localhost"   # Bedrock server host
-SERVER_PORT = 19133         # Bedrock server port
-```
-
-The dashboard polls every 30 seconds for analytics and every 5 seconds for the UI.
 
 ---
 
 ## Troubleshooting
 
-### Console says "Unable to connect to world"
-- Verify DNS is set correctly on the console (Primary: `<YOUR_MAC_IP>`)
-- Make sure `start-server.sh` is running in a terminal (both Bedrock server AND BedrockConnect)
-- Check that the Mac's firewall allows ports 53, 19132, and 19133
-- On Mac: **System Settings → Network → Firewall** — either turn it off or add exceptions
+**First thing to try for anything:** run `./start.sh` again, then look at the **Setup Check** in the dashboard.
 
-### BedrockConnect menu doesn't appear (goes to actual Featured Server)
-- The DNS redirect isn't working — double-check the console's Primary DNS is `<YOUR_MAC_IP>`
-- Port 53 might be in use — check with: `sudo lsof -i :53`
-- On macOS, the built-in mDNSResponder may conflict — try: `sudo launchctl unload -w /System/Library/LaunchDaemons/com.apple.mDNSResponder.plist` (re-enable later by changing `unload` to `load`)
+### Console says "Unable to connect to world"
+- Check the dashboard's Setup Check shows three green ticks
+- Verify the console's Primary DNS is your computer's IP (shown in the dashboard)
+- If the Mac firewall is on (**System Settings → Network → Firewall**), allow incoming connections for Docker
+
+### The real Featured Server opens instead of the server list
+- Pick **The Hive**, Lifeboat, Mineville, Galaxite or Enchanted Dragons — other Featured Servers aren't redirected
+- Double-check the console's Primary DNS, then fully close and reopen Minecraft
 - Restart the console's internet connection after changing DNS
+
+### It worked yesterday and now nothing connects
+- Your computer's IP address probably changed. Run `./start.sh` — it tells you if it did — and update the Primary DNS on each console
+- **Tip:** reserve a fixed IP for this computer in your router (often called "DHCP reservation") so it never changes
+
+### `./start.sh` says a port is already in use
+- If you used the older version of this project, press Ctrl+C in its `start-server.sh` window, then run `sudo killall dnsmasq`
+- On a Mac, turn off **Internet Sharing** (System Settings → General → Sharing) — it uses port 53
+- See what's using a port: `sudo lsof -nP -i :53`
+
+### Server console shows "NetherNet is the only supported transport type"
+- Expected, and safe to ignore. Since September 2026 the Bedrock server prefers a new network protocol (NetherNet), but BedrockConnect — the piece that lets consoles in — still uses the classic one (RakNet), so `docker-compose.yml` sets `TRANSPORT: raknet`
+- If a future Minecraft update stops consoles from joining, check [BedrockConnect](https://github.com/Pugmatt/BedrockConnect/releases) for a new release, then follow **Updating** below
 
 ### "Sign in with Microsoft Account" doesn't appear
 - Make sure Minecraft is updated to the latest version
@@ -365,46 +374,34 @@ The dashboard polls every 30 seconds for analytics and every 5 seconds for the U
 
 ### Players can't see each other in the world
 - All players must be signed into **different** Microsoft / Xbox accounts
-- Make sure **Multiplayer** is enabled in the world settings on the server
 - For child accounts, check Xbox privacy settings (see Tips for Parents above)
 
 ### Dashboard shows "OFFLINE"
-- The Bedrock server takes ~30 seconds to fully start up after `./start-server.sh`
-- Check Docker is running: `docker ps` (look for `minecraft-bedrock`)
-- Check server logs: `docker logs minecraft-bedrock`
-
-### Mac IP address changed
-- Find the new IP: `ipconfig getifaddr en0`
-- Update DNS settings on each console to the new IP
-- Restart `./start-server.sh` so BedrockConnect uses the new IP
-- **Tip:** Set a static IP or DHCP reservation on your router to prevent this
-
-### Server console shows "error binding to port"
-- This means two services are fighting over the same port
-- The Bedrock server runs on **19133** and BedrockConnect runs on **19132** — they must be different
-- If you changed ports, make sure `docker-compose.yml`, `start-server.sh`, and `dashboard/app.py` all match
+- A brand-new world takes a minute or two to load
+- Look at the logs: `docker logs minecraft-bedrock`
 
 ---
 
-## Stopping Everything
+## Updating
 
 ```bash
-# Stop the Bedrock server
-./stop-server.sh
-
-# Stop the dashboard — press Ctrl+C in its terminal
-
-# Stop BedrockConnect — press Ctrl+C in the start-server.sh terminal
+git pull
+docker compose pull
+./start.sh
 ```
+
+The Minecraft server itself updates to the latest version every time it restarts.
+
+**Coming from the older version** (the one with `setup.sh` / `start-server.sh`)? Stop the old one first (Ctrl+C in its `start-server.sh` window, then `sudo killall dnsmasq`), then run `./start.sh`. Your world in `server-data/` is picked up as-is. Java, dnsmasq and the Python virtualenv are no longer needed.
 
 ---
 
 ## Tech Stack
 
 - **Minecraft Bedrock Dedicated Server** via [itzg/minecraft-bedrock-server](https://github.com/itzg/docker-minecraft-bedrock-server) Docker image
-- **BedrockConnect** by [Pugmatt](https://github.com/Pugmatt/BedrockConnect) — console DNS bridge
+- **BedrockConnect** by [Pugmatt](https://github.com/Pugmatt/BedrockConnect) — console server list
+- **dnsmasq** — DNS redirect for consoles
 - **Flask** — Python web framework for the dashboard backend
-- **mcstatus** — Bedrock server status queries
 - **Docker SDK for Python** — container stats and management
 - **Chart.js** — player history graphs
 - **Press Start 2P / VT323** — pixel and terminal fonts for the Minecraft theme
