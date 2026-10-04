@@ -77,9 +77,34 @@ if [ -z "$HOST_IP" ]; then
 fi
 ok "This computer's address: ${BOLD}${HOST_IP}${NC}"
 
-echo "HOST_IP=$HOST_IP" > .env
+# .env also holds things you add yourself (like ANTHROPIC_API_KEY), so only
+# the lines this script owns are rewritten.
+set_env() {
+    touch .env
+    grep -v "^$1=" .env > .env.tmp || true
+    echo "$1=$2" >> .env.tmp
+    mv .env.tmp .env
+}
+set_env HOST_IP "$HOST_IP"
 
-mkdir -p server-data players bedrockconnect dashboard/data
+# Local time zone, so the nightly backup runs at night and backups show local times
+if [ -L /etc/localtime ]; then
+    set_env TZ "$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')"
+fi
+
+mkdir -p server-data players bedrockconnect dashboard/data backups
+
+# First run only: starting settings for the world. After this the dashboard
+# owns them (Server Settings and Worlds panels).
+if [ ! -f server-data/server.properties ]; then
+    cat > server-data/server.properties <<EOF
+level-name=FamilyWorld
+gamemode=creative
+difficulty=normal
+allow-cheats=true
+max-players=10
+EOF
+fi
 cat > bedrockconnect/custom_servers.json <<EOF
 [{"name":"Family Server","iconUrl":"","address":"$HOST_IP","port":19133}]
 EOF

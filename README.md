@@ -75,7 +75,13 @@ Every other DNS lookup is passed straight through to the internet, so the consol
 - Auto-restarts on crash and after reboots
 
 ### Web Dashboard
-- **How to Join** — per-console steps with your real IP filled in, plus a live Setup Check of every piece
+- **How to Join** — per-console steps with your real IP filled in, a live Setup Check of every piece, and a QR code that opens the dashboard on your phone
+- **Backups** — automatic snapshots while people play, one-click restore
+- **Worlds** — keep several worlds (a creative one, a survival one, one per kid) and switch between them
+- **World map** — a top-down map of everything explored and built, with live player markers
+- **AI Builder** — describe a build in words, preview it, and have it placed in the world (with Undo)
+- **Messages** — show "Dinner's ready!" on every player's screen from your phone
+- **Player actions** — heal, give a starter kit, teleport, switch one player's game mode, make an operator
 - **Real-time server status** — online/offline beacon, latency, version
 - **Player tracking** — see who's connected, join/leave activity feed
 - **Resource monitoring** — CPU, memory, network usage with visual bars
@@ -85,6 +91,52 @@ Every other DNS lookup is passed straight through to the internet, so the consol
 - **Server controls** — start, stop, restart with one click
 - **Fully responsive** — works on desktop, tablet, and phone
 - **Minecraft UI theme** — pixel fonts, block textures, dirt/stone aesthetic
+
+---
+
+## Family Features
+
+Everything here is in the dashboard at http://localhost:8080.
+
+### Messages
+
+Type a message (or tap a preset like **Dinner's ready!**) in **Messages & Quick Actions**. It appears in big letters on every player's screen, in chat, and with a sound.
+
+### Player actions
+
+Tap a player's name in the **Players** panel to heal and feed them, hand them a starter kit, switch just them between Creative and Survival, make them an operator, send them to another player, or bring everyone to them.
+
+### Backups
+
+The world is backed up automatically every three hours while people are playing, plus once a night at 4 am. Nothing is copied when nobody has played. **Back up now** makes one on demand.
+
+**Restore** puts the world back exactly as it was at that moment. Players are disconnected for about half a minute while it happens. The current world is backed up first ("Before a restore"), so a restore can itself be reversed.
+
+Backups are zip files in the `backups/` folder. The newest 8 automatic and 14 nightly ones are kept per world; ones you make yourself are kept until you delete them.
+
+### Worlds
+
+**Start a new world** creates another world next to the current one and switches everyone to it. **Switch to this** moves everyone to a different world. Each world remembers its own gamemode and difficulty, so a creative world stays creative. Switching restarts the server, so players are disconnected for a moment. No world is deleted by switching.
+
+### World map
+
+A top-down map of the overworld, one pixel per block, drawn from the world's own files. It fills in as players explore and redraws itself about every half minute while the world changes; **Refresh** forces it. Online players show as coloured squares with their names.
+
+Click anywhere to pick a spot. You can then send a player there, or use it as the place for an AI build.
+
+### AI Builder
+
+Describe a build ("a pirate ship with red sails"), press **Design it**, and Claude designs it. You see it from above and from the front, with its size and materials, before anything touches the world. Then choose where it goes (a spot picked on the map, or next to a player) and press **Build it in the world**. It works even when nobody is online.
+
+- **Undo last build** removes the most recent build and puts the land back exactly as it was.
+- Builds are up to 64 x 64 x 64 blocks and use about 230 kinds of block. Nothing that explodes, burns or flows hot. There are no stairs, doors or beds, because blocks are placed without a direction.
+- A sample castle is included, so you can try building without an API key.
+
+**To turn on new designs** you need an Anthropic API key (designs are made by `claude-opus-5-5`; each one costs a little API credit):
+
+1. Get a key at [console.anthropic.com](https://console.anthropic.com/)
+2. Open the `.env` file in this folder and add a line: `ANTHROPIC_API_KEY=your-key-here`
+3. Run `./start.sh` again
 
 ---
 
@@ -277,14 +329,23 @@ minecraft-family-server/
 ├── dns/Dockerfile              # Tiny dnsmasq image for the console DNS redirect
 ├── dashboard/
 │   ├── Dockerfile
-│   ├── app.py                  # Flask backend (API + server)
+│   ├── app.py                  # Flask backend: all the API routes
+│   ├── mc.py                   # Talking to the server: commands, logs, players
+│   ├── backups.py              # Snapshots and restore
+│   ├── worlds.py               # World list, switch, create
+│   ├── leveldb_reader.py       # Reads the world's database files directly
+│   ├── worldmap.py             # Renders the map tiles
+│   ├── builder.py              # Turns a build plan into blocks (and undo)
+│   ├── ai.py                   # Asks Claude for a build plan
+│   ├── samples/                # Ready-made designs
 │   ├── requirements.txt
 │   ├── templates/index.html    # Dashboard HTML
 │   └── static/                 # Styles + dashboard logic
 ├── server-data/                # Minecraft world data (auto-created)
+├── backups/                    # World backups (auto-created)
 ├── bedrockconnect/             # Server list shown to consoles (auto-created)
 ├── players/                    # BedrockConnect player data (auto-created)
-├── .env                        # This computer's IP (auto-created by start.sh)
+├── .env                        # This computer's IP and time zone (auto-created), plus your API key if you add one
 └── README.md
 ```
 
@@ -303,12 +364,23 @@ The dashboard exposes a REST API on port 8080:
 | `/api/history` | GET | Player count history (24h) |
 | `/api/logs?lines=50` | GET | Recent server console output |
 | `/api/settings` | GET / POST | Read or change gamemode, difficulty, cheats, max players |
+| `/api/announce` | POST | Show a message on every player's screen |
+| `/api/player` | POST | Heal, kit, teleport, gamemode or operator for one player |
+| `/api/backups` | GET / POST | List backups, or make one now |
+| `/api/backups/restore`, `/delete` | POST | Restore or delete a backup |
+| `/api/worlds` | GET | List worlds |
+| `/api/worlds/switch`, `/create` | POST | Switch to, or create, a world |
+| `/api/map/info`, `/players`, `/height` | GET | Map status, player positions, ground height at a spot |
+| `/api/map/tile/<x>/<z>.png` | GET | One 256 x 256 block map tile |
+| `/api/map/refresh` | POST | Save the world and redraw the map |
+| `/api/ai/status`, `/design/<id>` | GET | Builder status and designs |
+| `/api/ai/design`, `/build`, `/undo` | POST | Ask for a design, place it, undo the last build |
 | `/api/server/start` | POST | Start the Bedrock server |
 | `/api/server/stop` | POST | Stop the Bedrock server |
 | `/api/server/restart` | POST | Restart the Bedrock server |
 | `/api/command` | POST | Send a command to the server console |
 
-> The dashboard has no password and can run server commands, so anyone on your home network can use it. Don't forward port 8080 on your router.
+> The dashboard has no password, so anyone on your home network can use everything on it: run commands, restore backups, switch worlds, and (if you added an API key) spend its credit on AI builds. Don't forward port 8080 on your router.
 
 ---
 
@@ -316,7 +388,7 @@ The dashboard exposes a REST API on port 8080:
 
 ### Game Settings
 
-Change **gamemode, difficulty, cheats and max players** in the dashboard's **Server Settings** panel. A brand-new world starts as Survival / Easy.
+Change **gamemode, difficulty, cheats and max players** in the dashboard's **Server Settings** panel, and the world itself in the **Worlds** panel. A brand-new install starts with a world called FamilyWorld in Creative / Normal with cheats on.
 
 Everything else is in `docker-compose.yml`:
 
@@ -324,7 +396,6 @@ Everything else is in `docker-compose.yml`:
 environment:
   SERVER_NAME: "Family Server"     # Server name
   VIEW_DISTANCE: 16                # Render distance (chunks)
-  LEVEL_NAME: "FamilyWorld"        # World folder name
 ```
 
 After editing it, run `./start.sh` again. ([Full list of options](https://github.com/itzg/docker-minecraft-bedrock-server#server-properties))
@@ -376,6 +447,14 @@ After editing it, run `./start.sh` again. ([Full list of options](https://github
 - All players must be signed into **different** Microsoft / Xbox accounts
 - For child accounts, check Xbox privacy settings (see Tips for Parents above)
 
+### AI Builder says it needs an API key
+- Add `ANTHROPIC_API_KEY=...` to the `.env` file and run `./start.sh` again (see **AI Builder** above)
+- "The key was rejected" means the key is mistyped or has no credit
+
+### The map is empty or missing an area
+- The map only shows places someone has been. It fills in as players explore
+- Press **Refresh** on the map to save the world and redraw right now
+
 ### Dashboard shows "OFFLINE"
 - A brand-new world takes a minute or two to load
 - Look at the logs: `docker logs minecraft-bedrock`
@@ -402,6 +481,9 @@ The Minecraft server itself updates to the latest version every time it restarts
 - **BedrockConnect** by [Pugmatt](https://github.com/Pugmatt/BedrockConnect) — console server list
 - **dnsmasq** — DNS redirect for consoles
 - **Flask** — Python web framework for the dashboard backend
+- **Claude API** (Anthropic Python SDK) — designs for the AI Builder
+- **NumPy + Pillow** — map rendering and build previews
+- **Leaflet** — the pan-and-zoom world map
 - **Docker SDK for Python** — container stats and management
 - **Chart.js** — player history graphs
 - **Press Start 2P / VT323** — pixel and terminal fonts for the Minecraft theme

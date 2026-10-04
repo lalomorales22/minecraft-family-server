@@ -5,6 +5,7 @@
 const REFRESH_INTERVAL = 5000; // 5 seconds
 const SETUP_INTERVAL = 15000;  // setup check is slower (it pings each service)
 let playerChart = null;
+let onlinePlayers = [];
 
 // ---------- Utility ----------
 
@@ -75,6 +76,26 @@ function makePlayerHead(name) {
     return `<div class="player-head" style="background: ${color}; display:flex; align-items:center; justify-content:center; font-family:var(--font-pixel); font-size:14px; color:white; text-shadow:1px 1px 0 rgba(0,0,0,0.5);">${name[0].toUpperCase()}</div>`;
 }
 
+function playerActionsHtml(name, connected) {
+    const others = connected.filter(other => other !== name);
+    const sendTo = others.length ? `
+        <span class="mc-select-wrap"><select class="mc-select pa-target">
+            ${others.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+        </select></span>
+        <button class="chip" type="button" data-action="tp_to">Send to them</button>` : '';
+    return `
+        <div class="player-actions" hidden>
+            <button class="chip" type="button" data-action="heal">Heal &amp; feed</button>
+            <button class="chip" type="button" data-action="kit">Starter kit</button>
+            <button class="chip" type="button" data-action="creative">Creative</button>
+            <button class="chip" type="button" data-action="survival">Survival</button>
+            <button class="chip" type="button" data-action="bring_all">Bring everyone here</button>
+            <button class="chip" type="button" data-action="op">Make operator</button>
+            <button class="chip" type="button" data-action="deop">Remove operator</button>
+            ${sendTo}
+        </div>`;
+}
+
 // ---------- Update Functions ----------
 
 async function updateStatus() {
@@ -142,6 +163,7 @@ async function updatePlayers() {
     const connected = data.connected || [];
 
     if (connected.length === 0) {
+        listEl.dataset.signature = '';
         listEl.innerHTML = `
             <div class="no-players">
                 <span class="big">&#9776;</span>
@@ -149,16 +171,24 @@ async function updatePlayers() {
                 Waiting for connections...
             </div>`;
     } else {
-        listEl.innerHTML = connected.map(name => `
-            <li class="player-item">
-                ${makePlayerHead(name)}
-                <div>
-                    <div class="player-name">${escapeHtml(name)}</div>
-                    <div class="player-status">Playing now</div>
-                </div>
-                <div class="player-dot"></div>
-            </li>`).join('');
+        // Don't redraw (and close an open menu) when nobody joined or left
+        const signature = connected.join('\n');
+        if (listEl.dataset.signature !== signature) {
+            listEl.dataset.signature = signature;
+            listEl.innerHTML = connected.map(name => `
+                <li class="player-item" data-player="${escapeHtml(name)}">
+                    ${makePlayerHead(name)}
+                    <div>
+                        <div class="player-name">${escapeHtml(name)}</div>
+                        <div class="player-status">Playing now &middot; tap for actions</div>
+                    </div>
+                    <div class="player-dot"></div>
+                    ${playerActionsHtml(name, connected)}
+                </li>`).join('');
+        }
     }
+    onlinePlayers = connected;
+    document.dispatchEvent(new CustomEvent('players-changed', { detail: connected }));
 
     // Activity feed
     const feedEl = $('#activity-feed');
@@ -355,6 +385,7 @@ async function updateSetup() {
     if (!data) return;
 
     $$('.host-ip').forEach(el => { el.textContent = data.host_ip || 'unknown'; });
+    $('#dashboard-url').textContent = data.dashboard_url || '';
 
     const ready = $('#join-ready');
     ready.textContent = data.ready ? 'Ready for players' : 'Needs attention';

@@ -1,36 +1,51 @@
+import io
 import json
-import os
 import re
 import socket
 import struct
+import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import docker
+import segno
 from apscheduler.schedulers.background import BackgroundScheduler
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, send_file
+
+import ai
+import backups
+import builder
+import mc
+import worlds
+from worldmap import WorldMap
 
 app = Flask(__name__)
 
-# Defaults work when running `python app.py` straight from a checkout;
-# docker-compose.yml overrides them for the containerised dashboard.
-PROJECT_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.environ.get("DATA_DIR", PROJECT_DIR / "dashboard" / "data"))
-DATA_FILE = DATA_DIR / "history.json"
-PROPERTIES_FILE = Path(os.environ.get("PROPERTIES_FILE", PROJECT_DIR / "server-data" / "server.properties"))
-CONTAINER_NAME = "minecraft-bedrock"
-SERVER_HOST = os.environ.get("SERVER_HOST", "localhost")
-SERVER_PORT = 19133
+DATA_FILE = mc.DATA_DIR / "history.json"
+DESIGN_DIR = mc.DATA_DIR / "designs"
 BEDROCKCONNECT_PORT = 19132
-# The LAN address consoles use to reach this computer (written by start.sh)
-HOST_IP = os.environ.get("HOST_IP", "")
 # A Featured Server hostname the DNS container redirects to HOST_IP
 DNS_TEST_NAME = "hivebedrock.network"
 
 # Settings keys we expose through the API
 SETTINGS_KEYS = ("gamemode", "difficulty", "allow-cheats", "max-players")
+
+# Chatter from the dashboard's own commands that would drown out the console panel
+LOG_NOISE = re.compile(r"Target data:|No targets matched selector|\d+ blocks filled|Successfully found the block"
+                       r"|Cannot test for block outside|icking area|Saving\.\.\.|Data saved\.|Changes to the world are resumed"
+                       r"|^\S+/db/|^- dashboard_build|dashboard_undo_|^\s*$")
+
+
+def body() -> dict:
+    return request.get_json(silent=True) or {}
+
+
+def fail(message, status=400):
+    return jsonify({"success": False, "error": str(message)}), status
+
 
 # ---------------------------------------------------------------------------
 # Persistent history
@@ -52,96 +67,11 @@ def _load_history():
 
 
 def _save_history(data):
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    mc.DATA_DIR.mkdir(parents=True, exist_ok=True)
     DATA_FILE.write_text(json.dumps(data, indent=2))
 
 
 history = _load_history()
-
-# ---------------------------------------------------------------------------
-# Is a Bedrock server answering?
-# ---------------------------------------------------------------------------
-
-RAKNET_MAGIC = bytes.fromhex("00ffff00fefefefefdfdfdfd12345678")
-
-
-def _ping_bedrock(host: str, port: int, timeout: float = 3.0) -> dict | None:
-    """Send a RakNet "unconnected ping". Returns None if nothing answers.
-
-    Bedrock servers from 1.26.5x on answer in raknet mode *without* the usual
-    "MCPE;name;protocol;version;online;max;..." description, so everything
-    except `latency` is optional and callers fall back to server.properties.
-    """
-    start = time.monotonic()
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.settimeout(timeout)
-            ping = b"\x01" + struct.pack(">Q", int(time.time() * 1000)) + RAKNET_MAGIC + struct.pack(">Q", 2)
-            s.sendto(ping, (host, port))
-            data, _ = s.recvfrom(2048)
-    except OSError:
-        return None
-    if not data or data[0] != 0x1C:
-        return None
-    info: dict = {"latency": round((time.monotonic() - start) * 1000, 1)}
-    fields = data[35:].decode("utf-8", errors="replace").split(";")
-    try:
-        if len(fields) >= 6:
-            info.update(motd=fields[1], version=fields[3],
-                        players_online=int(fields[4]), players_max=int(fields[5]))
-        if len(fields) >= 9:
-            info.update(map_name=fields[7], gamemode=fields[8])
-    except ValueError:
-        pass
-    return info
-
-
-def _installed_version() -> str:
-    """The server image names its binary bedrock_server-<version>."""
-    binaries = sorted(PROPERTIES_FILE.parent.glob("bedrock_server-*"))
-    return binaries[-1].name.removeprefix("bedrock_server-") if binaries else "Unknown"
-
-
-# ---------------------------------------------------------------------------
-# Track connected players by tailing Docker logs
-# ---------------------------------------------------------------------------
-
-connected_players: set[str] = set()
-player_log: list[dict] = []  # recent join/leave events
-
-
-def _parse_player_events():
-    """Parse the Bedrock server Docker logs for connect/disconnect events."""
-    global connected_players
-    try:
-        client = docker.from_env()
-        container = client.containers.get(CONTAINER_NAME)
-        # Get last 200 lines of logs
-        logs = container.logs(tail=500).decode("utf-8", errors="replace")
-        current = set()
-        events = []
-        for line in logs.splitlines():
-            m_connect = re.search(r"Player connected:\s*(.+?)(?:,|\s*xuid)", line, re.IGNORECASE)
-            m_disconnect = re.search(r"Player disconnected:\s*(.+?)(?:,|\s*xuid)", line, re.IGNORECASE)
-            if m_connect:
-                name = m_connect.group(1).strip()
-                current.add(name)
-                events.append({"player": name, "action": "joined", "time": _extract_time(line)})
-            if m_disconnect:
-                name = m_disconnect.group(1).strip()
-                current.discard(name)
-                events.append({"player": name, "action": "left", "time": _extract_time(line)})
-        connected_players = current
-        return events[-20:]  # last 20 events
-    except Exception:
-        return []
-
-
-def _extract_time(line: str) -> str:
-    m = re.match(r"\[?([\d\-T: .]+)\]?", line)
-    if m:
-        return m.group(1).strip()
-    return datetime.now().strftime("%H:%M:%S")
 
 
 # ---------------------------------------------------------------------------
@@ -150,9 +80,9 @@ def _extract_time(line: str) -> str:
 
 def poll_server():
     global history
-    info = _ping_bedrock(SERVER_HOST, SERVER_PORT)
-    _parse_player_events()
-    online = info.get("players_online", len(connected_players)) if info else 0
+    info = mc.ping_bedrock(mc.SERVER_HOST, mc.SERVER_PORT)
+    mc.players.refresh()
+    online = info.get("players_online", len(mc.players.connected)) if info else 0
 
     # Update history
     history["player_counts"].append({
@@ -164,15 +94,56 @@ def poll_server():
     history["player_counts"] = [p for p in history["player_counts"] if p["time"] > cutoff]
     if online > history.get("peak_players", 0):
         history["peak_players"] = online
-    for p in connected_players:
+    for p in mc.players.connected:
         if p not in history.get("known_players", []):
             history.setdefault("known_players", []).append(p)
     history["total_unique"] = len(history.get("known_players", []))
     _save_history(history)
 
 
+# ---------------------------------------------------------------------------
+# World map (one renderer per world, created on demand)
+# ---------------------------------------------------------------------------
+
+_map: WorldMap | None = None
+_map_world = None
+_map_lock = threading.Lock()
+
+
+def world_map() -> WorldMap:
+    global _map, _map_world
+    with _map_lock:
+        world = mc.active_world()
+        if _map is None or _map_world != world:
+            slug = re.sub(r"[^A-Za-z0-9_-]+", "_", world)
+            _map = WorldMap(mc.WORLDS_DIR / world, mc.DATA_DIR / "map" / slug)
+            _map_world = world
+        return _map
+
+
+def refresh_map():
+    try:
+        world_map().refresh()
+    except Exception as e:
+        print(f"[map] refresh failed: {e}", flush=True)
+
+
+def save_and_redraw(force: bool = True) -> dict:
+    """Ask the server to write the world to disk right now, then redraw the map."""
+    if mc.server_running():
+        try:
+            mc.flush_world()
+        finally:
+            mc.resume_world()
+    return world_map().refresh(force=force)
+
+
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(poll_server, "interval", seconds=30)
+scheduler.add_job(refresh_map, "interval", seconds=30, max_instances=1, coalesce=True)
+# A snapshot every few hours while people are playing, plus one kept per day
+scheduler.add_job(backups.scheduled_backup, "interval", hours=3, args=["auto"], max_instances=1, coalesce=True)
+scheduler.add_job(backups.scheduled_backup, "cron", hour=4, minute=0, args=["daily"], max_instances=1, coalesce=True)
 scheduler.start()
 
 # ---------------------------------------------------------------------------
@@ -186,7 +157,7 @@ def index():
 
 @app.route("/api/status")
 def api_status():
-    info = _ping_bedrock(SERVER_HOST, SERVER_PORT)
+    info = mc.ping_bedrock(mc.SERVER_HOST, mc.SERVER_PORT)
     if info is None:
         return jsonify({
             "online": False,
@@ -199,34 +170,33 @@ def api_status():
             "map_name": "Unknown",
             "error": "Server is not answering",
         })
-    props = _read_properties()
-    _parse_player_events()
+    props = mc.read_properties()
+    mc.players.refresh()
     return jsonify({
         "online": True,
         "motd": info.get("motd") or props.get("server-name", ""),
-        "players_online": info.get("players_online", len(connected_players)),
+        "players_online": info.get("players_online", len(mc.players.connected)),
         "players_max": info.get("players_max") or int(props.get("max-players") or 0),
         "latency": info["latency"],
         "gamemode": info.get("gamemode") or props.get("gamemode", "Unknown").capitalize(),
-        "version": info.get("version") or _installed_version(),
+        "version": info.get("version") or mc.installed_version(),
         "map_name": info.get("map_name") or props.get("level-name", "Unknown"),
     })
 
 
 @app.route("/api/players")
 def api_players():
-    events = _parse_player_events()
+    mc.players.refresh()
     return jsonify({
-        "connected": sorted(connected_players),
-        "recent_events": events,
+        "connected": sorted(mc.players.connected),
+        "recent_events": mc.players.events,
     })
 
 
 @app.route("/api/stats")
 def api_stats():
     try:
-        client = docker.from_env()
-        container = client.containers.get(CONTAINER_NAME)
+        container = mc.container()
         stats = container.stats(stream=False)
 
         # CPU
@@ -273,11 +243,10 @@ def api_history():
 @app.route("/api/logs")
 def api_logs():
     try:
-        client = docker.from_env()
-        container = client.containers.get(CONTAINER_NAME)
         lines = int(request.args.get("lines", 50))
-        logs = container.logs(tail=lines).decode("utf-8", errors="replace")
-        return jsonify({"logs": logs.splitlines()})
+        logs = mc.container().logs(tail=lines * 8).decode("utf-8", errors="replace")
+        kept = [line for line in logs.splitlines() if not LOG_NOISE.search(line)]
+        return jsonify({"logs": kept[-lines:]})
     except Exception as e:
         return jsonify({"logs": [], "error": str(e)})
 
@@ -287,8 +256,7 @@ def api_server_action(action):
     if action not in ("start", "stop", "restart"):
         return jsonify({"error": "Invalid action"}), 400
     try:
-        container = docker.from_env().containers.get(CONTAINER_NAME)
-        getattr(container, action)()
+        getattr(mc.container(), action)()
         return jsonify({"success": True, "action": action})
     except docker.errors.NotFound:
         return jsonify({"success": False, "error": "Server isn't set up yet. Run ./start.sh on the computer."})
@@ -299,14 +267,12 @@ def api_server_action(action):
 @app.route("/api/command", methods=["POST"])
 def api_command():
     """Send a command to the Bedrock server console."""
-    cmd = (request.get_json(silent=True) or {}).get("command", "").strip()
+    cmd = body().get("command", "").strip()
     if not cmd:
         return jsonify({"error": "No command provided"}), 400
     try:
-        client = docker.from_env()
-        container = client.containers.get(CONTAINER_NAME)
-        result = container.exec_run(f"send-command {cmd}")
-        return jsonify({"output": result.output.decode("utf-8", errors="replace")})
+        mc.send(cmd)
+        return jsonify({"output": ""})
     except Exception as e:
         return jsonify({"error": str(e)})
 
@@ -315,54 +281,28 @@ def api_command():
 # Settings API
 # ---------------------------------------------------------------------------
 
-def _read_properties() -> dict[str, str]:
-    """Parse server.properties into a dict (ignoring comments)."""
-    props: dict[str, str] = {}
-    if PROPERTIES_FILE.exists():
-        for line in PROPERTIES_FILE.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                key, _, value = line.partition("=")
-                props[key.strip()] = value.strip()
-    return props
-
-
-def _write_properties(updates: dict[str, str]) -> None:
-    """Update specific keys in server.properties while preserving comments."""
-    lines = PROPERTIES_FILE.read_text().splitlines()
-    new_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#") and "=" in stripped:
-            key, _, _ = stripped.partition("=")
-            if key.strip() in updates:
-                new_lines.append(f"{key.strip()}={updates[key.strip()]}")
-                continue
-        new_lines.append(line)
-    PROPERTIES_FILE.write_text("\n".join(new_lines) + "\n")
-
-
 @app.route("/api/settings")
 def api_settings_get():
-    props = _read_properties()
+    props = mc.read_properties()
     return jsonify({k: props.get(k, "") for k in SETTINGS_KEYS})
 
 
 @app.route("/api/settings", methods=["POST"])
 def api_settings_post():
-    data = request.get_json(silent=True) or {}
+    data = body()
     updates = {}
     for key in SETTINGS_KEYS:
         if key in data:
             updates[key] = str(data[key])
     if not updates:
         return jsonify({"error": "No valid settings provided"}), 400
-    if not PROPERTIES_FILE.exists():
+    if not mc.PROPERTIES_FILE.exists():
         return jsonify({"success": False, "error": "The world is still being created. Try again in a minute."}), 409
     try:
-        _write_properties(updates)
+        mc.write_properties(updates)
+        worlds.remember_current()
         # Restart the container so changes take effect
-        docker.from_env().containers.get(CONTAINER_NAME).restart()
+        mc.container().restart()
         return jsonify({"success": True, "updated": updates})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -380,6 +320,10 @@ def _guess_host_ip() -> str:
             return s.getsockname()[0]
     except OSError:
         return ""
+
+
+def host_ip() -> str:
+    return mc.HOST_IP or _guess_host_ip()
 
 
 def _dns_lookup(server: str, name: str, timeout: float = 2.0) -> str:
@@ -408,26 +352,26 @@ def _dns_lookup(server: str, name: str, timeout: float = 2.0) -> str:
 # Each check goes through HOST_IP (this computer's LAN address) rather than the
 # Docker-internal names, so it exercises the same path a console takes.
 
-def _check_world(host_ip: str):
-    if _ping_bedrock(host_ip, SERVER_PORT):
+def _check_world(ip: str):
+    if mc.ping_bedrock(ip, mc.SERVER_PORT):
         return True, "Running"
     return False, "Not answering. It takes a minute or two to load after starting; if it stays red, run ./start.sh on the computer."
 
 
-def _check_bridge(host_ip: str):
-    if _ping_bedrock(host_ip, BEDROCKCONNECT_PORT):
+def _check_bridge(ip: str):
+    if mc.ping_bedrock(ip, BEDROCKCONNECT_PORT):
         return True, "Running"
     return False, "Not answering. Run ./start.sh on the computer."
 
 
-def _check_dns(host_ip: str):
+def _check_dns(ip: str):
     try:
-        answer = _dns_lookup(host_ip, DNS_TEST_NAME)
+        answer = _dns_lookup(ip, DNS_TEST_NAME)
     except Exception:
         return False, "Not answering. Run ./start.sh on the computer."
-    if answer == host_ip:
+    if answer == ip:
         return True, "Running"
-    return False, f"Pointing at {answer or 'nothing'} instead of {host_ip}. Run ./start.sh on the computer."
+    return False, f"Pointing at {answer or 'nothing'} instead of {ip}. Run ./start.sh on the computer."
 
 
 SETUP_CHECKS = (
@@ -439,9 +383,9 @@ SETUP_CHECKS = (
 
 @app.route("/api/setup")
 def api_setup():
-    host_ip = HOST_IP or _guess_host_ip()
+    ip = host_ip()
     with ThreadPoolExecutor(max_workers=len(SETUP_CHECKS)) as pool:
-        results = list(pool.map(lambda check: check[2](host_ip), SETUP_CHECKS))
+        results = list(pool.map(lambda check: check[2](ip), SETUP_CHECKS))
     checks = [
         {"id": check_id, "label": label, "ok": ok, "detail": detail}
         for (check_id, label, _), (ok, detail) in zip(SETUP_CHECKS, results)
@@ -451,14 +395,383 @@ def api_setup():
         lines = [f"{'ok' if c['ok'] else 'fail'}|{c['id']}|{c['label']}" for c in checks]
         return "\n".join(lines) + "\n", 200, {"Content-Type": "text/plain; charset=utf-8"}
     return jsonify({
-        "host_ip": host_ip,
-        "server_port": SERVER_PORT,
+        "host_ip": ip,
+        "server_port": mc.SERVER_PORT,
+        "dashboard_url": f"http://{ip}:8080",
         "ready": all(c["ok"] for c in checks),
         "checks": checks,
     })
 
 
+@app.route("/api/qr.svg")
+def api_qr():
+    """QR code that opens the dashboard on a phone."""
+    out = io.BytesIO()
+    segno.make(f"http://{host_ip()}:8080", error="m").save(
+        out, kind="svg", scale=5, border=2, dark="#0d0d1a", light="#ffffff", xmldecl=False)
+    return Response(out.getvalue(), mimetype="image/svg+xml")
+
+
+# ---------------------------------------------------------------------------
+# Messages to everyone in the game
+# ---------------------------------------------------------------------------
+
+@app.route("/api/announce", methods=["POST"])
+def api_announce():
+    # No selectors, quotes or control characters: this text goes straight into a command
+    message = re.sub(r"[@\"\\\x00-\x1f§]", "", str(body().get("message", ""))).strip()[:80]
+    if not message:
+        return fail("Type a message first")
+    try:
+        mc.players.refresh()
+        mc.send(f"title @a title {message}")
+        mc.send(f"say {message}")
+        mc.send("execute as @a at @s run playsound random.levelup @s")
+        return jsonify({"success": True, "message": message, "players": len(mc.players.connected)})
+    except Exception as e:
+        return fail(e, 500)
+
+
+# ---------------------------------------------------------------------------
+# Per-player actions
+# ---------------------------------------------------------------------------
+
+# {p} is the player, {t} a second player. Both are checked against who is online.
+PLAYER_ACTIONS = {
+    "heal": ["effect {p} instant_health 1 255 true", "effect {p} saturation 1 255 true"],
+    "kit": ["give {p} iron_sword", "give {p} iron_pickaxe", "give {p} iron_axe", "give {p} iron_shovel",
+            "give {p} bread 16", "give {p} torch 32"],
+    "creative": ["gamemode creative {p}"],
+    "survival": ["gamemode survival {p}"],
+    "op": ["op {p}"],
+    "deop": ["deop {p}"],
+    "bring_all": ["tp @a {p}"],
+    "tp_to": ["tp {p} {t}"],
+}
+
+
+@app.route("/api/player", methods=["POST"])
+def api_player():
+    data = body()
+    commands = PLAYER_ACTIONS.get(data.get("action"))
+    if data.get("action") == "tp_spot":
+        # A spot picked on the map: land on top of whatever is there
+        try:
+            x, z = int(data["x"]), int(data["z"])
+        except (KeyError, TypeError, ValueError):
+            return fail("Pick a spot on the map first")
+        surface = world_map().surface_height(x, z)
+        if surface is None:
+            return fail("That spot isn't on the map yet")
+        commands = [f"tp {{p}} {x} {surface + 1} {z}"]
+    if not commands:
+        return fail("Unknown action")
+    try:
+        player = mc.safe_player(str(data.get("player", "")))
+        target = mc.safe_player(str(data.get("target", ""))) if any("{t}" in c for c in commands) else ""
+        for command in commands:
+            mc.send(command.format(p=player, t=target))
+        return jsonify({"success": True})
+    except ValueError as e:
+        return fail(e)
+    except Exception as e:
+        return fail(e, 500)
+
+
+# ---------------------------------------------------------------------------
+# Worlds
+# ---------------------------------------------------------------------------
+
+@app.route("/api/worlds")
+def api_worlds():
+    return jsonify({"worlds": worlds.list_worlds(), "active": mc.active_world()})
+
+
+@app.route("/api/worlds/switch", methods=["POST"])
+def api_worlds_switch():
+    try:
+        worlds.switch_world(str(body().get("name", "")))
+        return jsonify({"success": True})
+    except ValueError as e:
+        return fail(e)
+    except Exception as e:
+        return fail(e, 500)
+
+
+@app.route("/api/worlds/create", methods=["POST"])
+def api_worlds_create():
+    data = body()
+    try:
+        worlds.create_world(str(data.get("name", "")), str(data.get("gamemode", "survival")),
+                            str(data.get("difficulty", "easy")), str(data.get("seed", "")))
+        return jsonify({"success": True})
+    except ValueError as e:
+        return fail(e)
+    except Exception as e:
+        return fail(e, 500)
+
+
+# ---------------------------------------------------------------------------
+# Backups
+# ---------------------------------------------------------------------------
+
+@app.route("/api/backups")
+def api_backups():
+    return jsonify({"backups": backups.list_backups(), "active": mc.active_world()})
+
+
+@app.route("/api/backups", methods=["POST"])
+def api_backups_create():
+    try:
+        return jsonify({"success": True, "backup": backups.create_backup("manual")})
+    except Exception as e:
+        return fail(e, 500)
+
+
+@app.route("/api/backups/restore", methods=["POST"])
+def api_backups_restore():
+    try:
+        return jsonify({"success": True, "backup": backups.restore_backup(str(body().get("id", "")))})
+    except ValueError as e:
+        return fail(e)
+    except Exception as e:
+        return fail(e, 500)
+
+
+@app.route("/api/backups/delete", methods=["POST"])
+def api_backups_delete():
+    try:
+        backups.delete_backup(str(body().get("id", "")))
+        return jsonify({"success": True})
+    except ValueError as e:
+        return fail(e)
+
+
+# ---------------------------------------------------------------------------
+# Map
+# ---------------------------------------------------------------------------
+
+@app.route("/api/map/info")
+def api_map_info():
+    return jsonify({**world_map().info(), "world": mc.active_world()})
+
+
+@app.route("/api/map/tile/<rx>/<rz>.png")
+def api_map_tile(rx, rz):
+    try:
+        path = world_map().tile_path(int(rx), int(rz))
+    except ValueError:
+        path = None
+    if path is None:
+        return "", 204   # unexplored: nothing to draw there
+    return send_file(path, mimetype="image/png", max_age=0)
+
+
+@app.route("/api/map/refresh", methods=["POST"])
+def api_map_refresh():
+    try:
+        return jsonify({"success": True, **save_and_redraw()})
+    except Exception as e:
+        return fail(e, 500)
+
+
+@app.route("/api/map/players")
+def api_map_players():
+    mc.players.refresh()
+    found = []
+    for name in sorted(mc.players.connected):
+        try:
+            position = mc.player_position(name)
+        except Exception:
+            position = None
+        if position:
+            found.append({"name": name, "x": round(position[0], 1), "y": round(position[1], 1), "z": round(position[2], 1)})
+    return jsonify({"players": found})
+
+
+@app.route("/api/map/height")
+def api_map_height():
+    try:
+        x, z = int(float(request.args["x"])), int(float(request.args["z"]))
+    except (KeyError, ValueError):
+        return fail("x and z are required")
+    return jsonify({"x": x, "z": z, "y": world_map().surface_height(x, z)})
+
+
+# ---------------------------------------------------------------------------
+# AI builder
+# ---------------------------------------------------------------------------
+
+designs: dict[str, dict] = {}       # id -> record; "plan" is kept server-side only
+_grids: dict[str, tuple] = {}       # id -> (grid, palette), rebuilt from the plan when needed
+
+
+def _design_record(design_id: str) -> dict | None:
+    if design_id in designs:
+        return designs[design_id]
+    path = DESIGN_DIR / f"{design_id}.json"
+    if re.fullmatch(r"[0-9a-f]{12}", design_id) and path.exists():
+        designs[design_id] = json.loads(path.read_text())
+        return designs[design_id]
+    return None
+
+
+def _save_design(record: dict) -> None:
+    DESIGN_DIR.mkdir(parents=True, exist_ok=True)
+    (DESIGN_DIR / f"{record['id']}.json").write_text(json.dumps(record))
+
+
+def _grid_for(record: dict):
+    if record["id"] not in _grids:
+        _grids[record["id"]] = builder.voxelize(record["plan"]["ops"])
+    return _grids[record["id"]]
+
+
+def register_design(record: dict, plan: dict) -> None:
+    """Draw a plan, work out its size and materials, and store it as ready to build."""
+    grid, palette = builder.voxelize(plan["ops"])
+    _grids[record["id"]] = (grid, palette)
+    record.update(
+        status="ready", plan=plan, name=plan["name"], summary=plan["summary"],
+        stats=builder.describe(grid, palette),
+        commands=len(builder.to_commands(grid, palette, (0, 0, 0), skip_air=True)),
+    )
+    designs[record["id"]] = record
+    _save_design(record)
+
+
+def load_samples() -> None:
+    """Ready-made designs shipped with the dashboard, so the builder works without an API key."""
+    for path in sorted((Path(__file__).resolve().parent / "samples").glob("*.json")):
+        design_id = uuid.uuid5(uuid.NAMESPACE_URL, path.name).hex[:12]
+        if not (DESIGN_DIR / f"{design_id}.json").exists():
+            try:
+                register_design({"id": design_id, "prompt": "", "sample": True, "created": 0},
+                                json.loads(path.read_text()))
+            except Exception as e:
+                print(f"[samples] {path.name}: {e}", flush=True)
+
+
+def _run_design(record: dict) -> None:
+    try:
+        register_design(record, ai.design(record["prompt"]))
+    except (ai.DesignError, builder.PlanError) as e:
+        record.update(status="error", error=str(e))
+    except Exception as e:
+        record.update(status="error", error=f"Something went wrong: {e}")
+
+
+def _public(record: dict) -> dict:
+    return {k: v for k, v in record.items() if k != "plan"}
+
+
+@app.route("/api/ai/status")
+def api_ai_status():
+    recent = []
+    if DESIGN_DIR.exists():
+        for path in sorted(DESIGN_DIR.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:8]:
+            record = _design_record(path.stem)
+            if record:
+                recent.append(_public(record))
+    return jsonify({"available": ai.available(), "model": ai.MODEL, "max_size": builder.SIZE,
+                    "last_build": builder.last_build(), "recent": recent})
+
+
+@app.route("/api/ai/design", methods=["POST"])
+def api_ai_design():
+    if not ai.available():
+        return fail("Add your Anthropic API key to the .env file and run ./start.sh again.", 409)
+    prompt = str(body().get("prompt", "")).strip()[:1500]
+    if len(prompt) < 3:
+        return fail("Describe what you'd like built")
+    if any(d["status"] == "designing" for d in designs.values()):
+        return fail("Claude is already working on a design. Give it a minute.", 409)
+    record = {"id": uuid.uuid4().hex[:12], "prompt": prompt, "status": "designing", "created": time.time()}
+    designs[record["id"]] = record
+    threading.Thread(target=_run_design, args=(record,), daemon=True).start()
+    return jsonify({"success": True, "design": _public(record)})
+
+
+@app.route("/api/ai/design/<design_id>")
+def api_ai_design_get(design_id):
+    record = _design_record(design_id)
+    if not record:
+        return fail("No such design", 404)
+    return jsonify({"design": _public(record)})
+
+
+@app.route("/api/ai/design/<design_id>/<view>.png")
+def api_ai_design_preview(design_id, view):
+    record = _design_record(design_id)
+    if not record or "plan" not in record or view not in ("top", "front"):
+        return "", 404
+    grid, palette = _grid_for(record)
+    return Response(builder.preview_png(grid, palette, view), mimetype="image/png")
+
+
+def _run_build(record: dict, origin, clear: bool) -> None:
+    try:
+        grid, palette = _grid_for(record)
+        record["build"] = builder.place(grid, palette, origin, clear=clear, label=record.get("name", ""))
+    except Exception as e:
+        record.update(status="ready", build_error=str(e))
+        return
+    try:
+        save_and_redraw()   # so the map already shows it when the browser hears it's done
+    except Exception as e:
+        print(f"[map] redraw after build failed: {e}", flush=True)
+    record["status"] = "built"
+    _save_design(record)
+
+
+@app.route("/api/ai/build", methods=["POST"])
+def api_ai_build():
+    data = body()
+    record = _design_record(str(data.get("id", "")))
+    if not record or "plan" not in record:
+        return fail("No such design", 404)
+    if any(d["status"] == "building" for d in designs.values()):
+        return fail("Another build is still going", 409)
+    try:
+        grid, palette = _grid_for(record)
+        size = builder.describe(grid, palette)["size"]
+        if data.get("player"):
+            position = mc.player_position(str(data["player"]))
+            if not position:
+                return fail("Couldn't find where that player is")
+            # A few blocks east of the player, centred on them north-south, at their feet
+            origin = (int(position[0]) + 4, int(round(position[1])), int(position[2]) - size["z"] // 2)
+        else:
+            x, z = int(data["x"]), int(data["z"])
+            y = data.get("y")
+            if y in (None, ""):
+                world_map().refresh()
+                surface = world_map().surface_height(x, z)
+                if surface is None:
+                    return fail("That spot isn't on the map yet, so type a height (Y) too")
+                y = surface + 1
+            # The spot the user picked becomes the middle of the build's footprint
+            origin = (x - size["x"] // 2, int(y), z - size["z"] // 2)
+    except (KeyError, TypeError, ValueError) as e:
+        return fail(f"Pick where to build it ({e})")
+    record.update(status="building", build_error=None)
+    threading.Thread(target=_run_build, args=(record, origin, bool(data.get("clear", True))), daemon=True).start()
+    return jsonify({"success": True, "origin": origin, "design": _public(record)})
+
+
+@app.route("/api/ai/undo", methods=["POST"])
+def api_ai_undo():
+    try:
+        undone = builder.undo_last()
+        save_and_redraw()
+        return jsonify({"success": True, "undone": undone})
+    except Exception as e:
+        return fail(e, 500)
+
+
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     poll_server()  # initial poll
+    load_samples()
+    threading.Thread(target=refresh_map, daemon=True).start()  # first map draw
     app.run(host="0.0.0.0", port=8080, debug=False)

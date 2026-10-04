@@ -1,6 +1,9 @@
 # Minecraft world data
 server-data/
 
+# World backups
+backups/
+
 # BedrockConnect downloaded files
 bedrockconnect/
 
