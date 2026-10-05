@@ -72,6 +72,7 @@ That's it - there is no step 4. Once each person joins the server, you're all in
 | Console DNS set to Mac IP? | One-time setup |
 | Xbox Live / Microsoft account signed in? | Required on each console |
 | Same Wi-Fi network as the Mac? | Required |
+| Nintendo Switch Online (Switch) / PlayStation Plus (PlayStation)? | Needed to open the Servers tab. See the README for a PlayStation LAN route |
 
 ---
 

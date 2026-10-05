@@ -38,6 +38,8 @@ That's it. `./start.sh` finds your computer's address, starts everything, checks
 | `./stop.sh` | Stop everything. Your world stays saved in `server-data/` |
 
 > **Requirements:** a Mac with Docker Desktop, on the same Wi-Fi / network as the consoles, and a free Microsoft account for each player. No Java, Python, Homebrew or `sudo` needed.
+>
+> **Console subscriptions:** Nintendo requires a **Nintendo Switch Online** membership to open the Servers tab on a Switch, even for a server in your own house, and there is no supported way around it. PlayStation's Servers tab normally needs PlayStation Plus, but see [Joining from PlayStation without the Servers tab](#joining-from-playstation-without-the-servers-tab). Phones, tablets and PCs need no subscription.
 
 ---
 
@@ -437,6 +439,17 @@ After editing it, run `./start.sh` again. ([Full list of options](https://github
 ### Server console shows "NetherNet is the only supported transport type"
 - Expected, and safe to ignore. Since September 2026 the Bedrock server prefers a new network protocol (NetherNet), but BedrockConnect — the piece that lets consoles in — still uses the classic one (RakNet), so `docker-compose.yml` sets `TRANSPORT: raknet`
 - If a future Minecraft update stops consoles from joining, check [BedrockConnect](https://github.com/Pugmatt/BedrockConnect/releases) for a new release, then follow **Updating** below
+
+### Switch says a Nintendo Switch Online membership is required
+- That check is Nintendo's and happens on the console before it ever contacts your server, so it applies to home servers too
+- Nintendo Switch Online has a free 7-day trial in the eShop, which is a good way to confirm everything works first
+- A family membership covers up to eight Nintendo accounts
+
+### Joining from PlayStation without the Servers tab
+- PlayStation and Xbox consoles can find servers on the same home network as "LAN games". This server answers that search
+- In Minecraft press **Play**, then look in the **Friends** tab (some versions show it under **Worlds**) for a game called **"Join To Open Server List"**. Join it, then pick **Family Server**
+- No DNS change is needed for this route. It does not work on Switch
+- Whether Sony asks for PlayStation Plus on LAN games hasn't been confirmed here
 
 ### "Sign in with Microsoft Account" doesn't appear
 - Make sure Minecraft is updated to the latest version
