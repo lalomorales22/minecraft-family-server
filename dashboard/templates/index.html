@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Family Server - Minecraft Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <style>
         /* Inline critical: grass block icon pixels */
         .gi-grass { background: #5B9A3C; }
@@ -71,6 +73,13 @@
                 <ul class="setup-checks" id="setup-checks">
                     <li class="setup-check"><span class="check-mark">&hellip;</span><span>Checking...</span></li>
                 </ul>
+
+                <div class="join-step-title" style="margin-top:18px;">Dashboard on your phone</div>
+                <div class="qr-box">
+                    <img class="qr-img" src="/api/qr.svg" alt="QR code that opens this dashboard" width="116" height="116">
+                    <div class="join-note">Point a phone camera at this while on the same Wi-Fi.<br>
+                        <span class="inline-ip" id="dashboard-url">...</span></div>
+                </div>
             </div>
 
             <!-- Right: where to type them, per console -->
@@ -253,9 +262,22 @@
     <!-- ===== COLUMN 1-2: Quick Actions ===== -->
     <div class="panel quick-actions-panel">
         <div class="panel-header">
-            <span class="icon">&#x26A1;</span> Quick Actions
+            <span class="icon">&#x26A1;</span> Messages &amp; Quick Actions
         </div>
         <div class="panel-body">
+            <div class="announce">
+                <div class="announce-row">
+                    <input type="text" class="mc-text" id="announce-input" maxlength="80"
+                           placeholder="Show a message on everyone's screen..." autocomplete="off">
+                    <button class="mc-btn success" id="btn-announce" type="button">Send</button>
+                </div>
+                <div class="chip-row">
+                    <button class="chip" type="button" data-msg="Dinner's ready!">Dinner's ready!</button>
+                    <button class="chip" type="button" data-msg="10 minutes left">10 minutes left</button>
+                    <button class="chip" type="button" data-msg="Bedtime - save your stuff">Bedtime</button>
+                    <button class="chip" type="button" data-msg="Come here please">Come here please</button>
+                </div>
+            </div>
             <div class="quick-actions-grid">
                 <button class="qa-btn" data-cmd="time set day" title="Set time to day">
                     <span class="qa-icon">&#x2600;</span>
@@ -332,6 +354,129 @@
         </div>
     </div>
 
+    <!-- ===== COLUMN 1-2: Backups ===== -->
+    <div class="panel backups-panel">
+        <div class="panel-header">
+            <span class="icon">&#x1F4BE;</span> Backups
+            <button class="mc-btn small header-btn" id="btn-backup-now" type="button">Back up now</button>
+        </div>
+        <div class="panel-body">
+            <div class="panel-note">Saved automatically every few hours while people play, plus one a night. Restoring puts the world back exactly as it was.</div>
+            <div class="row-list" id="backup-list"><div class="empty-note">Loading...</div></div>
+        </div>
+    </div>
+
+    <!-- ===== COLUMN 3-4: Worlds ===== -->
+    <div class="panel worlds-panel">
+        <div class="panel-header">
+            <span class="icon">&#x1F30D;</span> Worlds
+        </div>
+        <div class="panel-body">
+            <div class="row-list" id="world-list"><div class="empty-note">Loading...</div></div>
+            <form class="world-form" id="world-form" onsubmit="return false;">
+                <div class="form-title">Start a new world</div>
+                <input type="text" class="mc-text" id="world-name" maxlength="30" placeholder="World name" autocomplete="off">
+                <div class="form-row">
+                    <div class="mc-select-wrap">
+                        <select class="mc-select" id="world-gamemode">
+                            <option value="creative">Creative</option>
+                            <option value="survival">Survival</option>
+                            <option value="adventure">Adventure</option>
+                        </select>
+                    </div>
+                    <div class="mc-select-wrap">
+                        <select class="mc-select" id="world-difficulty">
+                            <option value="peaceful">Peaceful</option>
+                            <option value="easy">Easy</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <input type="text" class="mc-text" id="world-seed" placeholder="Seed (optional number)" autocomplete="off" inputmode="numeric">
+                    <button class="mc-btn success" id="btn-world-create" type="button">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ===== FULL WIDTH: World Map ===== -->
+    <div class="panel map-panel">
+        <div class="panel-header">
+            <span class="icon">&#x1F5FA;</span> World Map
+            <span class="header-meta" id="map-meta">Loading...</span>
+            <button class="mc-btn small header-btn" id="btn-map-refresh" type="button">Refresh</button>
+        </div>
+        <div class="map-wrap">
+            <div id="map"></div>
+            <div class="map-empty" id="map-empty" hidden>Nothing to show yet. The map fills in as players explore.</div>
+        </div>
+        <div class="map-footer">
+            <span id="map-coords">Move over the map to see coordinates. Click to pick a spot.</span>
+            <span class="map-picked" id="map-picked"></span>
+        </div>
+    </div>
+
+    <!-- ===== FULL WIDTH: AI Builder ===== -->
+    <div class="panel ai-panel">
+        <div class="panel-header">
+            <span class="icon">&#x2728;</span> AI Builder
+            <span class="header-meta" id="ai-meta"></span>
+            <button class="mc-btn small header-btn" id="btn-ai-undo" type="button" disabled>Undo last build</button>
+        </div>
+        <div class="ai-body">
+            <div class="ai-ask">
+                <div class="ai-setup" id="ai-setup" hidden>
+                    <b>To design new builds, add a Claude API key:</b>
+                    <ol>
+                        <li>Get a key at console.anthropic.com</li>
+                        <li>Open the <span class="inline-ip">.env</span> file in the server folder and add a line:<br>
+                            <span class="inline-ip">ANTHROPIC_API_KEY=your-key-here</span></li>
+                        <li>Run <span class="inline-ip">./start.sh</span> again</li>
+                    </ol>
+                    You can try the sample build below without one.
+                </div>
+                <textarea class="mc-text ai-prompt" id="ai-prompt" maxlength="1500" rows="4"
+                          placeholder="Describe a build... e.g. a wizard tower with a glowing crystal on top, surrounded by a garden"></textarea>
+                <div class="chip-row" id="ai-ideas">
+                    <button class="chip" type="button">A pirate ship with red sails</button>
+                    <button class="chip" type="button">A cozy treehouse village</button>
+                    <button class="chip" type="button">A giant rainbow rollercoaster station</button>
+                    <button class="chip" type="button">A dragon curled around a mountain</button>
+                </div>
+                <button class="mc-btn success" id="btn-ai-design" type="button">&#x2728; Design it</button>
+                <div class="panel-note" id="ai-status"></div>
+                <div class="form-title" style="margin-top:14px;">Designs</div>
+                <div class="row-list" id="ai-recent"><div class="empty-note">None yet</div></div>
+            </div>
+
+            <div class="ai-result" id="ai-result">
+                <div class="empty-note" id="ai-result-empty">Pick a design, or describe something new, and it shows up here before anything is built.</div>
+                <div id="ai-card" hidden>
+                    <div class="ai-name" id="ai-name"></div>
+                    <div class="ai-summary" id="ai-summary"></div>
+                    <div class="ai-previews">
+                        <figure><img id="ai-top" alt="Top view of the design"><figcaption>From above</figcaption></figure>
+                        <figure><img id="ai-front" alt="Front view of the design"><figcaption>From the front</figcaption></figure>
+                    </div>
+                    <div class="ai-stats" id="ai-stats"></div>
+
+                    <div class="form-title">Where should it go?</div>
+                    <label class="radio-row"><input type="radio" name="ai-where" value="map" checked>
+                        <span>At the spot picked on the map: <span class="inline-ip" id="ai-spot">none yet - click the map</span></span></label>
+                    <label class="radio-row"><input type="radio" name="ai-where" value="player">
+                        <span>Next to a player:</span>
+                        <span class="mc-select-wrap"><select class="mc-select" id="ai-player"></select></span></label>
+                    <label class="radio-row"><input type="checkbox" id="ai-clear" checked>
+                        <span>Clear the space first (removes trees and hills in the way)</span></label>
+                    <button class="mc-btn success" id="btn-ai-build" type="button">&#x1F528; Build it in the world</button>
+                    <div class="panel-note" id="ai-build-status"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== FULL WIDTH: Console ===== -->
     <div class="panel console-panel">
         <div class="panel-header">
@@ -356,5 +501,6 @@
 </main>
 
 <script src="/static/app.js"></script>
+<script src="/static/features.js"></script>
 </body>
 </html>

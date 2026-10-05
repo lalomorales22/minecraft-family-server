@@ -14,7 +14,6 @@ services:
       FORCE_GAMEMODE: "true"
       VIEW_DISTANCE: 16
       TICK_DISTANCE: 4
-      LEVEL_NAME: "FamilyWorld"
       SERVER_PORT: 19133
       SERVER_PORT_V6: 19134
       ENABLE_LAN_VISIBILITY: "false"
@@ -23,9 +22,10 @@ services:
       # allow list would lock everyone out.
       TRANSPORT: raknet
       ALLOW_LIST: "false"
-      # Gamemode, difficulty, cheats and max players are NOT set here on
-      # purpose: change them from the dashboard's Server Settings panel.
-      # (Anything set here overwrites server.properties on every restart.)
+      # Gamemode, difficulty, cheats, max players and the world name are NOT
+      # set here on purpose: the dashboard manages them (Server Settings and
+      # Worlds panels). Anything set here overwrites server.properties on
+      # every restart. First-run values come from start.sh.
     ports:
       - "19133:19133/udp"
     volumes:
@@ -77,12 +77,18 @@ services:
     environment:
       HOST_IP: ${HOST_IP}
       SERVER_HOST: bedrock-server
-      PROPERTIES_FILE: /server-data/server.properties
+      SERVER_DATA_DIR: /server-data
       DATA_DIR: /data
+      BACKUP_DIR: /backups
+      TZ: ${TZ:-UTC}
+      # Optional: lets the AI Builder panel ask Claude for designs. Put
+      # ANTHROPIC_API_KEY=... in the .env file next to this one.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./server-data:/server-data
       - ./dashboard/data:/data
+      - ./backups:/backups
     restart: unless-stopped

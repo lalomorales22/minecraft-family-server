@@ -1,0 +1,332 @@
+{
+ "name": "Sample: Stone Castle",
+ "summary": "A stone castle with four round towers, a keep with a pyramid roof and a flag, a stable, a tree and a little glass dome.",
+ "ops": [
+  {
+   "op": "box",
+   "block": "stone_bricks",
+   "x1": 12,
+   "y1": 0,
+   "z1": 12,
+   "x2": 51,
+   "y2": 0,
+   "z2": 51,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "stone_bricks",
+   "x1": 12,
+   "y1": 0,
+   "z1": 12,
+   "x2": 51,
+   "y2": 8,
+   "z2": 51,
+   "mode": "walls"
+  },
+  {
+   "op": "box",
+   "block": "mossy_stone_bricks",
+   "x1": 12,
+   "y1": 9,
+   "z1": 12,
+   "x2": 51,
+   "y2": 9,
+   "z2": 51,
+   "mode": "frame"
+  },
+  {
+   "op": "cylinder",
+   "block": "stone_bricks",
+   "x": 12,
+   "y": 0,
+   "z": 12,
+   "r": 4,
+   "h": 14,
+   "axis": "y",
+   "hollow": true
+  },
+  {
+   "op": "cylinder",
+   "block": "stone_bricks",
+   "x": 51,
+   "y": 0,
+   "z": 12,
+   "r": 4,
+   "h": 14,
+   "axis": "y",
+   "hollow": true
+  },
+  {
+   "op": "cylinder",
+   "block": "stone_bricks",
+   "x": 12,
+   "y": 0,
+   "z": 51,
+   "r": 4,
+   "h": 14,
+   "axis": "y",
+   "hollow": true
+  },
+  {
+   "op": "cylinder",
+   "block": "stone_bricks",
+   "x": 51,
+   "y": 0,
+   "z": 51,
+   "r": 4,
+   "h": 14,
+   "axis": "y",
+   "hollow": true
+  },
+  {
+   "op": "cone",
+   "block": "red_terracotta",
+   "x": 12,
+   "y": 14,
+   "z": 12,
+   "r": 5,
+   "h": 7
+  },
+  {
+   "op": "cone",
+   "block": "red_terracotta",
+   "x": 51,
+   "y": 14,
+   "z": 12,
+   "r": 5,
+   "h": 7
+  },
+  {
+   "op": "cone",
+   "block": "red_terracotta",
+   "x": 12,
+   "y": 14,
+   "z": 51,
+   "r": 5,
+   "h": 7
+  },
+  {
+   "op": "cone",
+   "block": "red_terracotta",
+   "x": 51,
+   "y": 14,
+   "z": 51,
+   "r": 5,
+   "h": 7
+  },
+  {
+   "op": "box",
+   "block": "air",
+   "x1": 30,
+   "y1": 1,
+   "z1": 51,
+   "x2": 33,
+   "y2": 5,
+   "z2": 51,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "gravel",
+   "x1": 30,
+   "y1": 0,
+   "z1": 40,
+   "x2": 33,
+   "y2": 0,
+   "z2": 51,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "polished_andesite",
+   "x1": 24,
+   "y1": 0,
+   "z1": 24,
+   "x2": 39,
+   "y2": 14,
+   "z2": 39,
+   "mode": "hollow"
+  },
+  {
+   "op": "box",
+   "block": "light_blue_stained_glass",
+   "x1": 24,
+   "y1": 5,
+   "z1": 29,
+   "x2": 24,
+   "y2": 9,
+   "z2": 34,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "light_blue_stained_glass",
+   "x1": 39,
+   "y1": 5,
+   "z1": 29,
+   "x2": 39,
+   "y2": 9,
+   "z2": 34,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "air",
+   "x1": 31,
+   "y1": 1,
+   "z1": 39,
+   "x2": 32,
+   "y2": 3,
+   "z2": 39,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "glowstone",
+   "x1": 31,
+   "y1": 14,
+   "z1": 31,
+   "x2": 32,
+   "y2": 14,
+   "z2": 32,
+   "mode": "solid"
+  },
+  {
+   "op": "pyramid",
+   "block": "dark_oak_planks",
+   "x1": 23,
+   "z1": 23,
+   "x2": 40,
+   "z2": 40,
+   "y": 15,
+   "hollow": false
+  },
+  {
+   "op": "line",
+   "block": "oak_fence",
+   "x1": 31,
+   "y1": 24,
+   "z1": 31,
+   "x2": 31,
+   "y2": 30,
+   "z2": 31
+  },
+  {
+   "op": "box",
+   "block": "red_wool",
+   "x1": 32,
+   "y1": 28,
+   "z1": 31,
+   "x2": 35,
+   "y2": 30,
+   "z2": 31,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "oak_planks",
+   "x1": 14,
+   "y1": 1,
+   "z1": 30,
+   "x2": 22,
+   "y2": 4,
+   "z2": 38,
+   "mode": "walls"
+  },
+  {
+   "op": "gable",
+   "block": "spruce_planks",
+   "x1": 13,
+   "z1": 29,
+   "x2": 23,
+   "z2": 39,
+   "y": 5,
+   "ridge": "x",
+   "hollow": false
+  },
+  {
+   "op": "box",
+   "block": "air",
+   "x1": 22,
+   "y1": 1,
+   "z1": 33,
+   "x2": 22,
+   "y2": 3,
+   "z2": 35,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "hay_block",
+   "x1": 15,
+   "y1": 1,
+   "z1": 31,
+   "x2": 16,
+   "y2": 2,
+   "z2": 32,
+   "mode": "solid"
+  },
+  {
+   "op": "dome",
+   "block": "glass",
+   "x": 44,
+   "y": 1,
+   "z": 44,
+   "r": 3,
+   "hollow": true
+  },
+  {
+   "op": "sphere",
+   "block": "gold_block",
+   "x": 44,
+   "y": 2,
+   "z": 44,
+   "r": 1,
+   "hollow": false
+  },
+  {
+   "op": "box",
+   "block": "oak_leaves",
+   "x1": 42,
+   "y1": 1,
+   "z1": 18,
+   "x2": 46,
+   "y2": 3,
+   "z2": 22,
+   "mode": "solid"
+  },
+  {
+   "op": "line",
+   "block": "oak_log",
+   "x1": 44,
+   "y1": 1,
+   "z1": 20,
+   "x2": 44,
+   "y2": 4,
+   "z2": 20
+  },
+  {
+   "op": "box",
+   "block": "lantern",
+   "x1": 29,
+   "y1": 1,
+   "z1": 50,
+   "x2": 29,
+   "y2": 1,
+   "z2": 50,
+   "mode": "solid"
+  },
+  {
+   "op": "box",
+   "block": "lantern",
+   "x1": 34,
+   "y1": 1,
+   "z1": 50,
+   "x2": 34,
+   "y2": 1,
+   "z2": 50,
+   "mode": "solid"
+  }
+ ]
+}
